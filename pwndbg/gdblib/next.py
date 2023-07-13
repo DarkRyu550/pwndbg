@@ -162,7 +162,6 @@ def break_on_matching_instruction(mnemonic=None, op_str=None) -> bool:
                     return True
             elif isinstance(op_str, list):
                 ops = ins.op_str.split()
-                print(f"trying to match {op_str} and {ops}")
 
                 if len(ops) == len(op_str):
                     matches = map(
