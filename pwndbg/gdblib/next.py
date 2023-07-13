@@ -128,6 +128,60 @@ def break_next_ret(address=None):
             return ins
 
 
+def break_on_matching_instruction(mnemonic=None, op_str=None) -> bool:
+    """
+    Breaks on next instuction that matches the arguments.
+    """
+    # Make sure we have something to break on.
+    if mnemonic is None and op_str is None:
+        return False
+
+    while pwndbg.gdblib.proc.alive:
+        
+        # Break on signal as it may be a segfault
+        if pwndbg.gdblib.proc.stopped_with_signal:
+            return False
+
+        ins = pwndbg.disasm.one(pwndbg.gdblib.regs.pc)
+        if not ins:
+            return False
+
+        # Check whether or not the mnemonic matches if it was specified.
+        mnemonic_match = True
+        if mnemonic is not None:
+            mnemonic_match = False
+            if ins.mnemonic.casefold() == mnemonic.casefold():
+                mnemonic_match = True
+
+        # Check whether or not the operands match if they were specified.
+        op_str_match = True
+        if op_str is not None:
+            op_str_match = False
+            if isinstance(op_str, str):
+                if ins.op_str.casefold() == op_str.casefold():
+                    return True
+            elif isinstance(op_str, list):
+                ops = ins.op_str.split()
+                print(f"trying to match {op_str} and {ops}")
+
+                if len(ops) == len(op_str):
+                    matches = map(
+                        lambda a: a[0].casefold() == a[1].casefold(),
+                        zip(ops, op_str), 
+                    )
+                    import functools
+                    if functools.reduce(lambda a, b: a and b, matches, True):
+                        return True
+
+        # If all of the parameters that were specified match, this is the
+        # instruction we want to stop at.
+        if mnemonic_match and op_str_match:
+            return True
+
+        # Otherwise, keep looking.
+        o = gdb.execute("si", from_tty=False, to_string=True)
+    return False
+
 def break_on_program_code() -> bool:
     """
     Breaks on next instruction that belongs to process' objfile code

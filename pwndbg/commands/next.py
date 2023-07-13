@@ -132,3 +132,26 @@ def stepsyscall() -> None:
 
     if pwndbg.gdblib.proc.alive:
         pwndbg.commands.context.context()
+
+
+parser = argparse.ArgumentParser(description="Breaks on the next matching instruction.")
+parser.add_argument(
+    "mnemonic", 
+    type=str, 
+    help="The mnemonic of the instruction"
+)
+parser.add_argument(
+    "op_str",
+    type=str,
+    nargs="*",
+    help="The operands of the instruction",
+)
+
+@pwndbg.commands.ArgparsedCommand(parser, command_name="untilasm")
+@pwndbg.commands.OnlyWhenRunning
+def untilasm(mnemonic, op_str):
+    if len(op_str) == 0:
+        op_str = None
+
+    pwndbg.gdblib.next.break_on_matching_instruction(mnemonic, op_str) 
+
