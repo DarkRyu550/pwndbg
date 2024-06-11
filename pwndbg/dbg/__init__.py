@@ -5,9 +5,30 @@ The abstracted debugger interface.
 from __future__ import annotations
 
 from typing import Any
+from enum import Enum
 
 dbg = None
 
+class Thread:
+    def registers(self):
+        raise NotImplementedError()
+    
+class ProcessState(Enum):
+    RUNNING = 1
+    STOPPED = 2
+
+class Process:
+    def state(self) -> ProcessState:
+        """
+        Returns the execution state of this process.
+        """
+        raise NotImplementedError()
+
+    def threads(self) -> list[Thread]:
+        """
+        Returns a list containing the threads in this process.
+        """
+        raise NotImplementedError()
 
 class Debugger:
     """
@@ -28,6 +49,13 @@ class Debugger:
         bringup code.
         """
         raise NotImplementedError()
+
+    def inferior(self) -> Process:
+        """
+        Returns a handle to the currently running inferior process.
+        """
+        raise NotImplementedError()
+
 
     # WARNING
     #
