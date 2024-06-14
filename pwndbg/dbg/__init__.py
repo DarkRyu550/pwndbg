@@ -11,7 +11,13 @@ from enum import Enum
 dbg = None
 
 class Frame:
-    pass
+    def evaluate_expression(self, expression: str) -> Value:
+        """
+        Evaluate the given expression in the context of this frame, and
+        return a `Value`.
+        """
+        raise NotImplementedError()
+
 
 class Thread:
     def registers(self):
