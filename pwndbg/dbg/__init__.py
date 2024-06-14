@@ -9,9 +9,17 @@ from enum import Enum
 
 dbg = None
 
+class Frame:
+    pass
+
 class Thread:
     def registers(self):
         raise NotImplementedError()
+
+    def frame(self) -> Frame:
+        """
+        Frame at the bottom of the call stack for this thread.
+        """
     
 class ProcessState(Enum):
     RUNNING = 1
