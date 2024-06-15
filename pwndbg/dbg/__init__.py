@@ -5,10 +5,11 @@ The abstracted debugger interface.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Callable
-from enum import Enum
+from typing import Any
+from typing import Callable
 
 dbg = None
+
 
 class Frame:
     def evaluate_expression(self, expression: str) -> Value:
@@ -20,30 +21,26 @@ class Frame:
 
 
 class Thread:
-    def registers(self):
-        raise NotImplementedError()
-
-    def frame(self) -> Frame:
+    def bottom_frame(self) -> Frame:
         """
         Frame at the bottom of the call stack for this thread.
         """
-    
-class ProcessState(Enum):
-    RUNNING = 1
-    STOPPED = 2
+
 
 class Process:
-    def state(self) -> ProcessState:
-        """
-        Returns the execution state of this process.
-        """
-        raise NotImplementedError()
-
     def threads(self) -> list[Thread]:
         """
         Returns a list containing the threads in this process.
         """
         raise NotImplementedError()
+
+    def evaluate_expression(self, expression: str) -> Value:
+        """
+        Evaluate the given expression in the context of the current process, and
+        return a `Value`.
+        """
+        raise NotImplementedError()
+
 
 class TypeCode(Enum):
     """
@@ -208,13 +205,13 @@ class Session:
     """
     Interactive debugger session. Handles things like commands and history.
     """
-    
+
     def history(self) -> list[str]:
         """
         The command history of this interactive session.
         """
         raise NotImplementedError()
-    
+
     def lex_args(self, command_line: str) -> list[str]:
         """
         Lexes the given command line into a list of arguments, according to the
@@ -222,15 +219,35 @@ class Session:
         """
         raise NotImplementedError()
 
+    def selected_inferior(self) -> Process | None:
+        """
+        The inferior process currently being focused on in this interactive session.
+        """
+        raise NotImplementedError()
+
+    def selected_thread(self) -> Thread | None:
+        """
+        The thread currently being focused on in this interactive session.
+        """
+        raise NotImplementedError()
+
+    def selected_frame(self) -> Frame | None:
+        """
+        The stack frame currently being focused on in this interactive session.
+        """
+
+
 class CommandHandle:
     """
     An opaque handle to an installed command.
     """
+
     def remove(self) -> None:
         """
         Removes this command from the command palette of the debugger.
         """
         raise NotImplementedError()
+
 
 class Debugger:
     """
@@ -252,7 +269,7 @@ class Debugger:
         """
         raise NotImplementedError()
 
-    def inferior(self) -> Process:
+    def inferior(self) -> Process | None:
         """
         Returns a handle to the currently running inferior process.
         """
@@ -277,19 +294,7 @@ class Debugger:
     # These are hacky parts of the API that were strictly necessary to bring up
     # pwndbg under LLDB without breaking it under GDB. Expect most of them to be
     # removed or replaced as the porting work continues.
-    # 
-
-    # This function will be split up into a frame-context and a global-context
-    # versions very soon, in a way that properly represents the way evaluation
-    # works under both GDB and LLDB.
     #
-    # TODO: Split up `evaluate_expressions` into its global and local versions.
-    def evaluate_expression(self, expression: str) -> Value:
-        """
-        Evaluate the given expression in the context of the current frame, and
-        return a `Value`.
-        """
-        raise NotImplementedError()
 
     def addrsz(self, address: Any) -> str:
         """

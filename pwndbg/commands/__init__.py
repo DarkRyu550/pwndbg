@@ -87,6 +87,7 @@ GDB_BUILTIN_COMMANDS = list_current_commands()
 # (there is no way to unregister a command in GDB 12.x)
 pwndbg_is_reloading = getattr(gdb, "pwndbg_is_reloading", False)
 
+
 def fallback_lex_args(command_line: str) -> list[str]:
     """
     Lexes the given command line into a list of arguments, according to the
@@ -96,6 +97,7 @@ def fallback_lex_args(command_line: str) -> list[str]:
     available.
     """
     return command_line.split()
+
 
 class Command:
     """Generic command wrapper"""
@@ -166,6 +168,10 @@ class Command:
             return
         except (TypeError, gdb.error):
             pwndbg.exception.handle(self.function.__name__)
+            return
+
+        if not pwndbg.dbg.inferior():
+            print(message.error("Pwndbg commands require a target binary to be selected"))
             return
 
         try:
@@ -244,15 +250,20 @@ def fix(
     if isinstance(arg, pwndbg.dbg_mod.Value):
         return arg
 
+    session = pwndbg.dbg.session()
+    frame = session.selected_frame() if session else None
+    target = frame if frame else pwndbg.dbg.inferior()
+    assert target, "Reached command expression evaluation with no frame or inferior"
+
     try:
-        parsed = pwndbg.dbg.evaluate_expression(arg)
+        parsed = target.evaluate_expression(arg)
         return parsed
     except Exception:
         pass
 
     try:
         arg = pwndbg.gdblib.regs.fix(arg)
-        return pwndbg.dbg.evaluate_expression(arg)
+        return frame.evaluate_expression(arg)
     except Exception as e:
         if not quiet:
             print(e)
@@ -638,8 +649,14 @@ def sloppy_gdb_parse(s: str) -> int | str:
     :param s: String.
     :return: Whatever gdb.parse_and_eval returns or string.
     """
+
+    session = pwndbg.dbg.session()
+    frame = session.selected_frame() if session else None
+    target = frame if frame else pwndbg.dbg.inferior()
+    assert target, "Reached command expression evaluation with no frame or inferior"
+
     try:
-        val = pwndbg.dbg.evaluate_expression(s)
+        val = target.evaluate_expression(s)
         # We can't just return int(val) because GDB may return:
         # "Python Exception <class 'gdb.error'> Cannot convert value to long."
         # e.g. for:

@@ -3,7 +3,8 @@ from __future__ import annotations
 import signal
 
 import gdb
-from typing_extensions import override, Callable
+from typing_extensions import Callable
+from typing_extensions import override
 
 import pwndbg
 import pwndbg.commands
@@ -12,15 +13,77 @@ from pwndbg.commands import load_commands
 from pwndbg.gdblib import gdb_version
 from pwndbg.gdblib import load_gdblib
 
+
+class GDBFrame(pwndbg.dbg_mod.Frame):
+    def __init__(self, inner: gdb.Frame):
+        self.inner = inner
+
+    @override
+    def evaluate_expression(self, expression):
+        selected = gdb.selected_frame()
+        restore = False
+        if selected != self.inner:
+            self.inner.select()
+            restore = True
+
+        value = gdb.parse_and_eval(expression, global_context=False)
+        if restore:
+            selected.select()
+        return GDBValue(value)
+
+
+class GDBThread(pwndbg.dbg_mod.Thread):
+    def __init__(self, inner: gdb.Thread):
+        self.inner = inner
+
+    @override
+    def bottom_frame(self):
+        selected = gdb.selected_thread()
+        restore = False
+        if selected != self.inner:
+            self.inner.switch()
+            restore = True
+
+        value = gdb.newest_frame()
+        if restore:
+            selected.switch()
+        return GDBFrame(value)
+
+
+class GDBProcess(pwndbg.dbg_mod.Process):
+    def __init__(self, inner: gdb.Inferior):
+        self.inner = inner
+
+    @override
+    def evaluate_expression(self, expression):
+        return GDBValue(gdb.parse_and_eval(expression, global_context=True))
+
+
 class GDBSession(pwndbg.dbg_mod.Session):
     @override
     def history(self):
         lines = gdb.execute("show commands", from_tty=False, to_string=True)
         return lines.splitlines()
-    
+
     @override
     def lex_args(self, command_line):
         return gdb.string_to_argv(command_line)
+
+    @override
+    def selected_thread(self):
+        thread = gdb.selected_thread()
+        if thread:
+            return GDBThread(thread)
+
+    @override
+    def selected_frame(self):
+        try:
+            frame = gdb.selected_frame()
+            if frame:
+                return GDBFrame(frame)
+        except gdb.error:
+            pass
+
 
 class GDBCommand(gdb.Command):
     def __init__(self, debugger: GDB, name: str, handler: Callable[str, bool]):
@@ -31,6 +94,7 @@ class GDBCommand(gdb.Command):
     def invoke(self, args: str, from_tty: bool) -> None:
         self.handler(self.debugger, args, from_tty)
 
+
 class GDBCommandHandle(pwndbg.dbg_mod.CommandHandle):
     def __init__(self, command: gdb.Command):
         self.command = command
@@ -38,6 +102,7 @@ class GDBCommandHandle(pwndbg.dbg_mod.CommandHandle):
     def remove(self):
         # GDB doesn't support command removal?
         pass
+
 
 class GDBType(pwndbg.dbg_mod.Type):
     CODE_MAPPING = {
@@ -153,6 +218,7 @@ class GDB(pwndbg.dbg_mod.Debugger):
         load_commands()
 
         from pwndbg.gdblib import prompt
+
         prompt.set_prompt()
 
         pre_commands = f"""
@@ -206,11 +272,15 @@ class GDB(pwndbg.dbg_mod.Debugger):
     def add_command(self, command, handler):
         command = GDBCommand(self, command, handler)
         return GDBCommandHandle(command)
-    
+
     @override
     def session(self):
         # FIXME: Creating a new object every time is unnecessary.
         return GDBSession()
+
+    @override
+    def inferior(self):
+        return GDBProcess(gdb.selected_inferior())
 
     @override
     def evaluate_expression(self, expression):
