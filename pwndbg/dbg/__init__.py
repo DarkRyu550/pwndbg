@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Any
-from typing import Callable
+from typing import Callable, Tuple
 
 dbg = None
 
@@ -302,7 +302,7 @@ class Debugger:
         """
         raise NotImplementedError()
 
-    def get_cmd_window_size(self) -> tuple[int, int]:
+    def get_cmd_window_size(self) -> Tuple[int, int]:
         """
         The size of the command window, in characters, if available.
         """
