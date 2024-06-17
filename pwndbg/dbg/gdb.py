@@ -10,9 +10,7 @@ from typing_extensions import Callable
 from typing_extensions import override
 
 import pwndbg
-import pwndbg.commands
 import pwndbg.gdblib
-from pwndbg.commands import load_commands
 from pwndbg.gdblib import gdb_version
 from pwndbg.gdblib import load_gdblib
 
@@ -32,6 +30,7 @@ class GDBRegisters(pwndbg.dbg_mod.Registers):
         return None
 
 
+
 class GDBFrame(pwndbg.dbg_mod.Frame):
     def __init__(self, inner: gdb.Frame):
         self.inner = inner
@@ -44,14 +43,21 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
             self.inner.select()
             restore = True
 
+        ex = None
         try:
-            value = gdb.parse_and_eval(expression, global_context=False)
-        except TypeError:
-            # Some earlier versions of GDB don't support the global_context keyword.
-            value = gdb.parse_and_eval(expression)
+            try:
+                value = gdb.parse_and_eval(expression, global_context=False)
+            except TypeError:
+                # Some earlier versions of GDB don't support the global_context keyword.
+                value = gdb.parse_and_eval(expression)
+        except gdb.error as e:
+            ex = e
         finally:
             if restore:
                 selected.select()
+
+        if ex:
+            raise pwndbg.dbg_mod.Error(ex)
 
         return GDBValue(value)
 
@@ -85,10 +91,13 @@ class GDBProcess(pwndbg.dbg_mod.Process):
     @override
     def evaluate_expression(self, expression: str) -> pwndbg.dbg_mod.Value:
         try:
-            return GDBValue(gdb.parse_and_eval(expression, global_context=True))
-        except TypeError:
-            # Some earlier versions of GDB don't support the global_context keyword.
-            return GDBValue(gdb.parse_and_eval(expression))
+            try:
+                return GDBValue(gdb.parse_and_eval(expression, global_context=True))
+            except TypeError:
+                # Some earlier versions of GDB don't support the global_context keyword.
+                return GDBValue(gdb.parse_and_eval(expression))
+        except gdb.error as e:
+            raise pwndbg.dbg_mod.Error(e)
 
 
 class GDBCommand(gdb.Command):
@@ -206,7 +215,10 @@ class GDBValue(pwndbg.dbg_mod.Value):
 
     @override
     def __int__(self) -> int:
-        return int(self.inner)
+        try:
+            return int(self.inner)
+        except gdb.error as e:
+            raise pwndbg.dbg_mod.Error(e)
 
     @override
     def cast(self, type: pwndbg.dbg_mod.Type | Any) -> pwndbg.dbg_mod.Value:
@@ -228,6 +240,8 @@ class GDBValue(pwndbg.dbg_mod.Value):
 class GDB(pwndbg.dbg_mod.Debugger):
     @override
     def setup(self):
+        from pwndbg.commands import load_commands
+
         load_gdblib()
         load_commands()
 
@@ -416,8 +430,36 @@ class GDB(pwndbg.dbg_mod.Debugger):
         return None
 
     @override
+    def commands(self):
+        current_pagination = gdb.execute("show pagination", to_string=True)
+        current_pagination = current_pagination.split()[-1].rstrip(
+            "."
+        )  # Take last word and skip period
+
+        gdb.execute("set pagination off")
+        command_list = gdb.execute("help all", to_string=True).strip().split("\n")
+        existing_commands: Set[str] = set()
+        for line in command_list:
+            line = line.strip()
+            # Skip non-command entries
+            if (
+                not line
+                or line.startswith("Command class:")
+                or line.startswith("Unclassified commands")
+            ):
+                continue
+            command = line.split()[0]
+            existing_commands.add(command)
+        gdb.execute(f"set pagination {current_pagination}")  # Restore original setting
+        return existing_commands
+
+    @override
     def inferior(self) -> pwndbg.dbg_mod.Process | None:
         return GDBProcess(gdb.selected_inferior())
+
+    @override
+    def is_gdblib_available(self):
+        return True
 
     @override
     def addrsz(self, address: Any) -> str:
