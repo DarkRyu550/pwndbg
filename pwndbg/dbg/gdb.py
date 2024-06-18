@@ -7,6 +7,7 @@ from typing import Tuple
 
 import gdb
 from typing_extensions import Callable
+from typing_extensions import Set
 from typing_extensions import override
 
 import pwndbg
@@ -28,7 +29,6 @@ class GDBRegisters(pwndbg.dbg_mod.Registers):
             # None when that is the case.
             pass
         return None
-
 
 
 class GDBFrame(pwndbg.dbg_mod.Frame):
@@ -429,7 +429,7 @@ class GDB(pwndbg.dbg_mod.Debugger):
         except gdb.error:
             pass
         return None
-    
+
     def commands(self):
         current_pagination = gdb.execute("show pagination", to_string=True)
         current_pagination = current_pagination.split()[-1].rstrip(
