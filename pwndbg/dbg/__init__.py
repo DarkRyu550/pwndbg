@@ -212,13 +212,13 @@ class Session:
     Interactive debugger session. Handles things like commands and history.
     """
 
-    def history(self) -> list[str]:
+    def history(self) -> List[str]:
         """
         The command history of this interactive session.
         """
         raise NotImplementedError()
 
-    def lex_args(self, command_line: str) -> list[str]:
+    def lex_args(self, command_line: str) -> List[str]:
         """
         Lexes the given command line into a list of arguments, according to the
         conventions of the debugger being used and of the interactive session.
@@ -288,7 +288,9 @@ class Debugger:
         """
         raise NotImplementedError()
 
-    def add_command(self, name: str, handler: Callable[str, bool]) -> CommandHandle:
+    def add_command(
+        self, name: str, handler: Callable[[Debugger, str, bool], None]
+    ) -> CommandHandle:
         """
         Adds a command with the given name to the debugger, that invokes the
         given function every time it is called.

@@ -86,7 +86,12 @@ class GDBSession(pwndbg.dbg_mod.Session):
 
 
 class GDBCommand(gdb.Command):
-    def __init__(self, debugger: GDB, name: str, handler: Callable[str, bool]):
+    def __init__(
+        self,
+        debugger: GDB,
+        name: str,
+        handler: Callable[[pwndbg.dbg_mod.Debugger, str, bool], None],
+    ):
         self.debugger = debugger
         self.handler = handler
         super().__init__(name, gdb.COMMAND_USER, gdb.COMPLETE_EXPRESSION)
