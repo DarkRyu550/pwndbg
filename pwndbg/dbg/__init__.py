@@ -13,7 +13,6 @@ from typing import Tuple
 dbg: Debugger = None
 
 
-
 class Error(Exception):
     pass
 
@@ -51,7 +50,6 @@ class Thread:
         Frame at the bottom of the call stack for this thread.
         """
         raise NotImplementedError()
-
 
 
 class Process:
@@ -308,7 +306,7 @@ class Debugger:
         """
         raise NotImplementedError()
 
-    def commands(self) -> list[str]:
+    def commands(self) -> List[str]:
         """
         List the commands available in this session.
         """
