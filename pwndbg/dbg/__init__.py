@@ -30,7 +30,7 @@ class Thread:
 
 
 class Process:
-    def threads(self) -> list[Thread]:
+    def threads(self) -> List[Thread]:
         """
         Returns a list containing the threads in this process.
         """

@@ -252,7 +252,9 @@ def fix(
 
     session = pwndbg.dbg.session()
     frame = session.selected_frame() if session else None
-    target = frame if frame else pwndbg.dbg.inferior()
+    target: pwndbg.dbg_mod.Frame | pwndbg.dbg_mod.Process = (
+        frame if frame else pwndbg.dbg.inferior()
+    )
     assert target, "Reached command expression evaluation with no frame or inferior"
 
     try:
@@ -652,7 +654,9 @@ def sloppy_gdb_parse(s: str) -> int | str:
 
     session = pwndbg.dbg.session()
     frame = session.selected_frame() if session else None
-    target = frame if frame else pwndbg.dbg.inferior()
+    target: pwndbg.dbg_mod.Frame | pwndbg.dbg_mod.Process = (
+        frame if frame else pwndbg.dbg.inferior()
+    )
     assert target, "Reached command expression evaluation with no frame or inferior"
 
     try:
