@@ -26,8 +26,8 @@ from typing import TypeVar
 
 import gdb
 
+import pwndbg
 import pwndbg.chain
-import pwndbg.config
 import pwndbg.gdblib.events
 import pwndbg.gdblib.heap
 import pwndbg.gdblib.heap.heap
@@ -465,6 +465,9 @@ class Heap:
         "_prev",
         "first_chunk",
     )
+
+    start: int
+    end: int
 
     def __init__(self, addr: int, arena: Arena | None = None) -> None:
         """Build a Heap object given an address on that heap.
