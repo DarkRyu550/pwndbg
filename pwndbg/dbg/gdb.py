@@ -17,6 +17,50 @@ from pwndbg.gdblib import gdb_version
 from pwndbg.gdblib import load_gdblib
 
 
+class GDBFrame(pwndbg.dbg_mod.Frame):
+    def __init__(self, inner: gdb.Frame):
+        self.inner = inner
+
+    @override
+    def evaluate_expression(self, expression):
+        selected = gdb.selected_frame()
+        restore = False
+        if selected != self.inner:
+            self.inner.select()
+            restore = True
+
+        value = gdb.parse_and_eval(expression, global_context=False)
+        if restore:
+            selected.select()
+        return GDBValue(value)
+
+
+class GDBThread(pwndbg.dbg_mod.Thread):
+    def __init__(self, inner: gdb.Thread):
+        self.inner = inner
+
+    @override
+    def bottom_frame(self):
+        selected = gdb.selected_thread()
+        restore = False
+        if selected != self.inner:
+            self.inner.switch()
+            restore = True
+
+        value = gdb.newest_frame()
+        if restore:
+            selected.switch()
+        return GDBFrame(value)
+
+
+class GDBProcess(pwndbg.dbg_mod.Process):
+    def __init__(self, inner: gdb.Inferior):
+        self.inner = inner
+
+    @override
+    def evaluate_expression(self, expression):
+        return GDBValue(gdb.parse_and_eval(expression, global_context=True))
+
 class GDBSession(pwndbg.dbg_mod.Session):
     @override
     def history(self) -> List[str]:
@@ -26,6 +70,22 @@ class GDBSession(pwndbg.dbg_mod.Session):
     @override
     def lex_args(self, command_line: str) -> List[str]:
         return gdb.string_to_argv(command_line)
+
+
+    @override
+    def selected_thread(self):
+        thread = gdb.selected_thread()
+        if thread:
+            return GDBThread(thread)
+
+    @override
+    def selected_frame(self):
+        try:
+            frame = gdb.selected_frame()
+            if frame:
+                return GDBFrame(frame)
+        except gdb.error:
+            pass
 
 
 class GDBCommand(gdb.Command):
@@ -232,8 +292,8 @@ class GDB(pwndbg.dbg_mod.Debugger):
         return GDBSession()
 
     @override
-    def evaluate_expression(self, expression: str) -> pwndbg.dbg_mod.Value:
-        return GDBValue(gdb.parse_and_eval(expression))
+    def inferior(self):
+        return GDBProcess(gdb.selected_inferior())
 
     @override
     def addrsz(self, address: Any) -> str:

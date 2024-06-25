@@ -32,6 +32,37 @@ class Session:
         raise NotImplementedError()
 
 
+class Frame:
+    def evaluate_expression(self, expression: str) -> Value:
+        """
+        Evaluate the given expression in the context of this frame, and
+        return a `Value`.
+        """
+        raise NotImplementedError()
+
+
+class Thread:
+    def bottom_frame(self) -> Frame:
+        """
+        Frame at the bottom of the call stack for this thread.
+        """
+
+
+class Process:
+    def threads(self) -> List[Thread]:
+        """
+        Returns a list containing the threads in this process.
+        """
+        raise NotImplementedError()
+
+    def evaluate_expression(self, expression: str) -> Value:
+        """
+        Evaluate the given expression in the context of the current process, and
+        return a `Value`.
+        """
+        raise NotImplementedError()
+
+
 class TypeCode(Enum):
     """
     Broad categories of types.
@@ -207,6 +238,54 @@ class Value:
         raise NotImplementedError()
 
 
+class Session:
+    """
+    Interactive debugger session. Handles things like commands and history.
+    """
+
+    def history(self) -> List[str]:
+        """
+        The command history of this interactive session.
+        """
+        raise NotImplementedError()
+
+    def lex_args(self, command_line: str) -> List[str]:
+        """
+        Lexes the given command line into a list of arguments, according to the
+        conventions of the debugger being used and of the interactive session.
+        """
+        raise NotImplementedError()
+
+    def selected_inferior(self) -> Process | None:
+        """
+        The inferior process currently being focused on in this interactive session.
+        """
+        raise NotImplementedError()
+
+    def selected_thread(self) -> Thread | None:
+        """
+        The thread currently being focused on in this interactive session.
+        """
+        raise NotImplementedError()
+
+    def selected_frame(self) -> Frame | None:
+        """
+        The stack frame currently being focused on in this interactive session.
+        """
+
+
+class CommandHandle:
+    """
+    An opaque handle to an installed command.
+    """
+
+    def remove(self) -> None:
+        """
+        Removes this command from the command palette of the debugger.
+        """
+        raise NotImplementedError()
+
+
 class Debugger:
     """
     The base class representing a debugger.
@@ -224,6 +303,12 @@ class Debugger:
         This shouldn't be a problem, seeing as, unlike other methods in this
         class, this should only be called as part of the debugger-specific
         bringup code.
+        """
+        raise NotImplementedError()
+
+    def inferior(self) -> Process | None:
+        """
+        Returns a handle to the currently running inferior process.
         """
         raise NotImplementedError()
 
@@ -249,18 +334,6 @@ class Debugger:
     # pwndbg under LLDB without breaking it under GDB. Expect most of them to be
     # removed or replaced as the porting work continues.
     #
-
-    # This function will be split up into a frame-context and a global-context
-    # versions very soon, in a way that properly represents the way evaluation
-    # works under both GDB and LLDB.
-    #
-    # TODO: Split up `evaluate_expressions` into its global and local versions.
-    def evaluate_expression(self, expression: str) -> Value:
-        """
-        Evaluate the given expression in the context of the current frame, and
-        return a `Value`.
-        """
-        raise NotImplementedError()
 
     def addrsz(self, address: Any) -> str:
         """
