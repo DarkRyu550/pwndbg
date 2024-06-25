@@ -265,7 +265,7 @@ def fix(
 
     try:
         arg = pwndbg.gdblib.regs.fix(arg)
-        return frame.evaluate_expression(arg)
+        return target.evaluate_expression(arg)
     except Exception as e:
         if not quiet:
             print(e)

@@ -13,25 +13,6 @@ from typing import Tuple
 dbg: Debugger = None
 
 
-class Session:
-    """
-    Interactive debugger session. Handles things like commands and history.
-    """
-
-    def history(self) -> List[str]:
-        """
-        The command history of this interactive session.
-        """
-        raise NotImplementedError()
-
-    def lex_args(self, command_line: str) -> List[str]:
-        """
-        Lexes the given command line into a list of arguments, according to the
-        conventions of the debugger being used and of the interactive session.
-        """
-        raise NotImplementedError()
-
-
 class Frame:
     def evaluate_expression(self, expression: str) -> Value:
         """
@@ -46,6 +27,7 @@ class Thread:
         """
         Frame at the bottom of the call stack for this thread.
         """
+        raise NotImplementedError()
 
 
 class Process:
@@ -156,18 +138,6 @@ class Type:
         raise NotImplementedError()
 
 
-class CommandHandle:
-    """
-    An opaque handle to an installed command.
-    """
-
-    def remove(self) -> None:
-        """
-        Removes this command from the command palette of the debugger.
-        """
-        raise NotImplementedError()
-
-
 class Value:
     """
     Class representing a value in the context of an inferior process.
@@ -272,6 +242,7 @@ class Session:
         """
         The stack frame currently being focused on in this interactive session.
         """
+        raise NotImplementedError()
 
 
 class CommandHandle:

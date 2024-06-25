@@ -22,16 +22,22 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
         self.inner = inner
 
     @override
-    def evaluate_expression(self, expression):
+    def evaluate_expression(self, expression: str) -> pwndbg.dbg_mod.Value:
         selected = gdb.selected_frame()
         restore = False
         if selected != self.inner:
             self.inner.select()
             restore = True
 
-        value = gdb.parse_and_eval(expression, global_context=False)
-        if restore:
-            selected.select()
+        try:
+            value = gdb.parse_and_eval(expression, global_context=False)
+        except TypeError:
+            # Some earlier versions of GDB don't support the global_context keyword.
+            value = gdb.parse_and_eval(expression)
+        finally:
+            if restore:
+                selected.select()
+
         return GDBValue(value)
 
 
@@ -40,7 +46,7 @@ class GDBThread(pwndbg.dbg_mod.Thread):
         self.inner = inner
 
     @override
-    def bottom_frame(self):
+    def bottom_frame(self) -> pwndbg.dbg_mod.Frame:
         selected = gdb.selected_thread()
         restore = False
         if selected != self.inner:
@@ -58,8 +64,13 @@ class GDBProcess(pwndbg.dbg_mod.Process):
         self.inner = inner
 
     @override
-    def evaluate_expression(self, expression):
-        return GDBValue(gdb.parse_and_eval(expression, global_context=True))
+    def evaluate_expression(self, expression: str) -> pwndbg.dbg_mod.Value:
+        try:
+            return GDBValue(gdb.parse_and_eval(expression, global_context=True))
+        except TypeError:
+            # Some earlier versions of GDB don't support the global_context keyword.
+            return GDBValue(gdb.parse_and_eval(expression))
+
 
 class GDBSession(pwndbg.dbg_mod.Session):
     @override
@@ -71,21 +82,21 @@ class GDBSession(pwndbg.dbg_mod.Session):
     def lex_args(self, command_line: str) -> List[str]:
         return gdb.string_to_argv(command_line)
 
-
     @override
-    def selected_thread(self):
+    def selected_thread(self) -> pwndbg.dbg_mod.Thread:
         thread = gdb.selected_thread()
         if thread:
             return GDBThread(thread)
 
     @override
-    def selected_frame(self):
+    def selected_frame(self) -> pwndbg.dbg_mod.Frame:
         try:
             frame = gdb.selected_frame()
             if frame:
                 return GDBFrame(frame)
         except gdb.error:
             pass
+        return None
 
 
 class GDBCommand(gdb.Command):
@@ -292,7 +303,7 @@ class GDB(pwndbg.dbg_mod.Debugger):
         return GDBSession()
 
     @override
-    def inferior(self):
+    def inferior(self) -> pwndbg.dbg_mod.Process | None:
         return GDBProcess(gdb.selected_inferior())
 
     @override
