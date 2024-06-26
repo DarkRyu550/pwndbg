@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import sys
+import os
 from typing import Any
 from typing import Callable
 from typing import List
 from typing import Tuple
+from collections.abc import Sequence
 
 import lldb
 from typing_extensions import override
@@ -206,6 +208,23 @@ class LLDBValue(pwndbg.dbg_mod.Value):
         return LLDBValue(self.inner.Cast(t.inner))
 
 
+class LLDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
+    def __init__(self, pages: List[pwndbg.lib.memory.Page]):
+        self.pages = pages
+
+    @override
+    def is_qemu(self) -> bool:
+        # Figure a way to detect QEMU later.
+        return False
+
+    @override
+    def has_reliable_perms(self) -> bool:
+        return True
+
+    @override
+    def ranges(self) -> Sequence[pwndbg.lib.memory.Page]:
+        return self.pages
+
 class LLDBProcess(pwndbg.dbg_mod.Process):
     def __init__(self, process: lldb.SBProcess, target: lldb.SBTarget):
         self.process = process
@@ -221,6 +240,51 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
 
         return LLDBValue(value)
 
+    @override
+    def vmmap(self) -> pwndbg.dbg_mod.MemoryMap:
+        regions = self.process.GetMemoryRegions()
+
+        pages = []
+        for i in range(regions.GetSize()):
+            region = lldb.SBMemoryRegionInfo()
+            assert regions.GetMemoryRegionAtIndex(i, region), \
+                "invalid region despite being in bounds"
+
+            perms = 0
+            if region.IsReadable():
+                perms |= os.R_OK
+            if region.IsWritable():
+                perms |= os.W_OK
+            if region.IsExecutable():
+                perms |= os.X_OK
+
+            # LLDB doesn't actually tell us the offset of the mapped file, just
+            # whether it is mapped or not.
+            offset = 0 if not region.IsMapped() else 1
+
+            pages.append(pwndbg.lib.memory.Page(
+                start=region.GetRegionBase(),
+                size=region.GetRegionEnd() - region.GetRegionBase(),
+                flags=perms,
+                offset=offset,
+                objfile=region.GetName()
+            ))
+
+        return LLDBMemoryMap(pages)
+
+        
+    @override
+    def symbol_name_at_address(self, address: int) -> str | None:
+        addr = lldb.SBAddress(address, self.target)
+        ctx = self.target.ResolveSymbolContextForAddress(addr, lldb.eSymbolContextSymbol)
+
+        if not ctx.IsValid():
+            return None
+
+        if not ctx.symbol.IsValid():
+            return None
+
+        return ctx.symbol.name
 
 class LLDBCommand(pwndbg.dbg_mod.CommandHandle):
     def __init__(self, handler_name: str, command_name: str):
@@ -250,13 +314,7 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         pwndbg.commands.load_commands()
 
-        import argparse
-
-        parser = argparse.ArgumentParser(description="Prints a test message.")
-
-        @pwndbg.commands.ArgparsedCommand(parser)
-        def test2():
-            print("Test 2!")
+        import pwndbg.dbg.lldb.pset
 
     @override
     def add_command(

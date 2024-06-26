@@ -8,8 +8,10 @@ from enum import Enum
 from typing import Any
 from typing import Callable
 from typing import List
+from typing import Literal
 from typing import Tuple
 from typing import TypeVar
+from collections.abc import Sequence
 
 dbg: Debugger = None
 
@@ -18,6 +20,47 @@ T = TypeVar("T")
 
 class Error(Exception):
     pass
+
+
+class Arch:
+    """
+    The definition of an architecture.
+    """
+
+    def endian(self) -> Literal["little", "big"]:
+        """
+        Wether code in this module is little or big.
+        """
+        raise NotImplementedError()
+
+    def arch(self) -> str:
+        """
+        Name of the architecture.
+        """
+        raise NotImplementedError()
+
+    def ptrsize(self) -> int:
+        """
+        Length of the pointer in this module.
+        """
+        raise NotImplementedError()
+
+class Module:
+    """
+    A module loaded into the address space of the process.
+    """
+
+    def name(self) -> str | None:
+        """
+        The name of this module, if available.
+        """
+        raise NotImplementedError()
+
+    def arch(self) -> Arch:
+        """
+        The architecture of code in this module.
+        """
+        raise NotImplementedError()
 
 
 class Registers:
@@ -46,6 +89,12 @@ class Frame:
         """
         raise NotImplementedError()
 
+    def module(self) -> Module:
+        """
+        Module containing the code in this frame.
+        """
+        raise NotImplementedError()
+
 
 class Thread:
     def bottom_frame(self) -> Frame:
@@ -54,6 +103,29 @@ class Thread:
         """
         raise NotImplementedError()
 
+
+class MemoryMap:
+    """
+    A wrapper around a sequence of memory ranges
+    """
+
+    def is_qemu(self) -> bool:
+        """
+        Returns whether this memory map was generated from a QEMU target.
+        """
+        raise NotImplementedError()
+
+    def has_reliable_perms(self) -> bool:
+        """
+        Returns whether the permissions in this memory map are reliable.
+        """
+        raise NotImplementedError()
+
+    def ranges(self) -> Sequence[pwndbg.lib.memory.Page]:
+        """
+        Returns all ranges in this memory map.
+        """
+        raise NotImplementedError()
 
 class Process:
     def threads(self) -> List[Thread]:
@@ -66,6 +138,27 @@ class Process:
         """
         Evaluate the given expression in the context of the current process, and
         return a `Value`.
+        """
+        raise NotImplementedError()
+
+    def vmmap(self) -> MemoryMap:
+        """
+        Returns the virtual memory map of this process.
+        """
+        raise NotImplementedError()
+    
+    # We'll likely have to expand this into a Symbol class and change this to a
+    # `symbol_at_address` function later on.
+    def symbol_name_at_address(self, address: int) -> str | None:
+        """
+        Returns the name of the symbol at the given address in the program, if
+        one exists.
+        """
+        raise NotImplementedError()
+
+    def arch(self) -> Arch:
+        """
+        The default architecture of this process.
         """
         raise NotImplementedError()
 

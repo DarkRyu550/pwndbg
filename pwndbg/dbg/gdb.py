@@ -21,6 +21,34 @@ from pwndbg.gdblib import load_gdblib
 T = TypeVar("T")
 
 
+class GDBLibArch(pwndbg.dbg_mod.Arch):
+    @override
+    def endian(self) -> Literal["little", "big"]:
+        import pwndbg.gdblib.arch
+        return pwndbg.gdblib.arch.endian
+
+    @override
+    def arch(self) -> str:
+        import pwndbg.gdblib.arch
+        return pwndbg.gdblib.arch.name
+
+    @override
+    def ptrsize(self) -> int:
+        import pwndbg.gdblib.arch
+        return pwndbg.gdblib.arch.ptrsize
+
+
+class GDBModule(pwndbg.dbg_mod.Module):
+    @override
+    def name(self) -> str | None:
+        return None
+    
+    @override
+    def arch(self) -> pwndbg.dbg_mod.Arch:
+        # We should handle cases like Windows's ARM64EC here.
+        return GDBLibArch()
+
+
 class GDBRegisters(pwndbg.dbg_mod.Registers):
     def __init__(self, frame: GDBFrame):
         self.frame = frame
@@ -99,6 +127,11 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
     def regs(self) -> pwndbg.dbg_mod.Registers:
         return GDBRegisters(self)
 
+    @override
+    def module(self) -> pwndbg.dbg_mod.Module:
+        # For now, this isn't the real module, but it's good enough for now to
+        # be used to determine the architecture.
+        return GDBModule()
 
 class GDBThread(pwndbg.dbg_mod.Thread):
     def __init__(self, inner: gdb.InferiorThread):
@@ -110,6 +143,23 @@ class GDBThread(pwndbg.dbg_mod.Thread):
             value = gdb.newest_frame()
         return GDBFrame(value)
 
+class GDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
+    def __init__(self, reliable_perms: bool, qemu: bool, pages: Sequence[pwndbg.lib.memory.Page]):
+        self.reliable_perms = reliable_perms
+        self.qemu = qemu
+        self.pages = pages
+
+    @override
+    def is_qemu(self) -> bool:
+        return self.qemu
+
+    @override
+    def has_reliable_perms(self) -> bool:
+        return self.reliable_perms
+
+    @override
+    def ranges(self) -> Sequence[pwndbg.lib.memory.Page]:
+        return self.pages
 
 class GDBProcess(pwndbg.dbg_mod.Process):
     def __init__(self, inner: gdb.Inferior):
@@ -122,6 +172,30 @@ class GDBProcess(pwndbg.dbg_mod.Process):
         except gdb.error as e:
             raise pwndbg.dbg_mod.Error(e)
 
+    @override
+    def vmmap(self) -> pwndbg.dbg_mod.MemoryMap:
+        import pwndbg.gdblib.vmmap
+        from pwndbg.gdblib import gdb_version
+
+        pages = pwndbg.gdblib.vmmap.get()
+        qemu = pwndbg.gdblib.qemu.is_qemu() and not pwndbg.gdblib.qemu.exec_file_supported()
+
+        # Only GDB versions >=12 report permission info in info proc mappings.
+        # On older versions, we fallback on "rwx".
+        # See https://github.com/bminor/binutils-gdb/commit/29ef4c0699e1b46d41ade00ae07a54f979ea21cc
+        reliable_perms = not (pwndbg.gdblib.qemu.is_qemu_usermode() and gdb_version[0] < 12)
+
+        return GDBMemoryMap(reliable_perms, qemu, pages)
+    
+    @override
+    def symbol_name_at_address(self, address: int) -> str | None:
+        import pwndbg.gdblib.symbol
+        return pwndbg.gdblib.symbol.get(address) or None
+    
+    @override
+    def arch(self) -> pwndbg.dbg_mod.Arch:
+        return GDBLibArch()
+       
 
 class GDBCommand(gdb.Command):
     def __init__(
