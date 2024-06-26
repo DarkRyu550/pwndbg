@@ -2,13 +2,11 @@ from __future__ import annotations
 
 from typing import Callable
 
-import gdb
-
-import pwndbg.gdblib.symbol
-import pwndbg.gdblib.vmmap
 from pwndbg.color import ColorConfig
 from pwndbg.color import ColorParamSpec
 from pwndbg.color import normal
+
+import pwndbg
 
 ColorFunction = Callable[[str], str]
 
@@ -26,12 +24,18 @@ c = ColorConfig(
 )
 
 
+def sym_name(address: int) -> str | None:
+    """
+    Retrieves the name of the symbol at the given address, if it exists
+    """
+    return pwndbg.dbg.inferior().symbol_name_at_address(address)
+
 def get_address_and_symbol(address: int) -> str:
     """
     Convert and colorize address 0x7ffff7fcecd0 to string `0x7ffff7fcecd0 (_dl_fini)`
     If no symbol exists for the address, return colorized address
     """
-    symbol = pwndbg.gdblib.symbol.get(address) or None
+    symbol = sym_name(address)
     if symbol:
         symbol = f"{address:#x} ({symbol})"
     return get(address, symbol)
@@ -48,23 +52,52 @@ def attempt_colorized_symbol(address: int) -> str | None:
     """
     Convert address to colorized symbol (if symbol is there), else None
     """
-    symbol = pwndbg.gdblib.symbol.get(address) or None
+    symbol = sym_name(address)
     if symbol:
         return get(address, symbol)
     return None
 
 
-def get(address: int | gdb.Value, text: str | None = None, prefix: str | None = None) -> str:
+# We have to accept `Any` here, as users may pass gdb.Value objects to this
+# function. This is probably more lenient than we'd really like.
+#
+# TODO: Remove the exception for gdb.Value case from `pwndbg.color.memory.get`.
+def get(address: int | pwndbg.dbg_mod.Value | Any, text: str | None = None, prefix: str | None = None) -> str:
     """
     Returns a colorized string representing the provided address.
 
     Arguments:
-        address(int | gdb.Value): Address to look up
+        address(int | pwndbg.dbg_mod.Value): Address to look up
         text(str | None): Optional text to use in place of the address in the return value string.
         prefix(str | None): Optional text to set at beginning in the return value string.
     """
     address = int(address)
-    page = pwndbg.gdblib.vmmap.find(address)
+
+    import pwndbg
+    vmmap = pwndbg.dbg.inferior().vmmap()
+
+    page = None
+    for entry in vmmap.ranges():
+        if address in entry:
+            page = entry
+
+    # The regular search failed. If we have access to `gdblib`, try the native
+    # search functionality it provides. 
+    #
+    # Currently, the `gdblib` version of the search differs from the regular
+    # search in that it will explore and discover ranges, even when they are not
+    # listed in the virtual memory map. So, in order to preserve the original
+    # behavior of this function in all cases, this is currently necessary.
+    #
+    # We might want to move that discovery behavior out of `gdblib` and into the
+    # agnostic library in the future. If/when that happens, we should get rid of
+    # this.
+    # 
+    # TODO: Remove this if memory range discovery behavior is no longer exclusive to `gdblib.vmmap`.
+    if not page and pwndbg.dbg.is_gdblib_available():
+        import pwndbg.gdblib.vmmap
+        page = pwndbg.gdblib.vmmap.find(address)
+
     color: Callable[[str], str]
 
     if page is None:

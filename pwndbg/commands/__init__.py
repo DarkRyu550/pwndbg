@@ -364,7 +364,8 @@ def OnlyWhenPagingEnabled(function: Callable[P, T]) -> Callable[P, Optional[T]]:
 def OnlyWhenRunning(function: Callable[P, T]) -> Callable[P, Optional[T]]:
     @functools.wraps(function)
     def _OnlyWhenRunning(*a: P.args, **kw: P.kwargs) -> Optional[T]:
-        if pwndbg.gdblib.proc.alive:
+        # TODO: Properly support OnlyWhenRunning without `gdblib`.
+        if not pwndbg.dbg.is_gdblib_available() or pwndbg.gdblib.proc.alive:
             return function(*a, **kw)
         else:
             log.error(f"{function.__name__}: The program is not being run.")
@@ -690,10 +691,8 @@ def load_commands() -> None:
         import pwndbg.commands.canary
         import pwndbg.commands.checksec
         import pwndbg.commands.comments
-        import pwndbg.commands.config
         import pwndbg.commands.context
         import pwndbg.commands.cpsr
-        import pwndbg.commands.cyclic
         import pwndbg.commands.cymbol
         import pwndbg.commands.dev
         import pwndbg.commands.distance
@@ -751,7 +750,10 @@ def load_commands() -> None:
         import pwndbg.commands.tls
         import pwndbg.commands.valist
         import pwndbg.commands.version
-        import pwndbg.commands.vmmap
         import pwndbg.commands.windbg
         import pwndbg.commands.xinfo
         import pwndbg.commands.xor
+
+    import pwndbg.commands.config
+    import pwndbg.commands.cyclic
+    import pwndbg.commands.vmmap

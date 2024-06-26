@@ -8,7 +8,6 @@ import argparse
 
 import pwndbg
 import pwndbg.commands
-import pwndbg.gdblib.config
 import pwndbg.lib.config
 from pwndbg.color import generateColorFunction
 from pwndbg.color import ljust_colored
@@ -133,11 +132,10 @@ parser.add_argument(
 def theme(filter_pattern) -> None:
     display_config(filter_pattern, "theme")
 
-
-@pwndbg.commands.ArgparsedCommand(configfile_parser, category=CommandCategory.PWNDBG)
-def configfile(show_all=False) -> None:
-    configfile_print_scope("config", show_all)
-
+if pwndbg.dbg.is_gdblib_available():
+    @pwndbg.commands.ArgparsedCommand(configfile_parser, category=CommandCategory.PWNDBG)
+    def configfile(show_all=False) -> None:
+        configfile_print_scope("config", show_all)
 
 themefile_parser = argparse.ArgumentParser(
     description="Generates a configuration file for the current pwndbg theme options."
@@ -147,9 +145,10 @@ themefile_parser.add_argument(
 )
 
 
-@pwndbg.commands.ArgparsedCommand(themefile_parser, category=CommandCategory.PWNDBG)
-def themefile(show_all=False) -> None:
-    configfile_print_scope("theme", show_all)
+if pwndbg.dbg.is_gdblib_available():
+    @pwndbg.commands.ArgparsedCommand(themefile_parser, category=CommandCategory.PWNDBG)
+    def themefile(show_all=False) -> None:
+        configfile_print_scope("theme", show_all)
 
 
 def configfile_print_scope(scope: str, show_all: bool = False) -> None:
@@ -158,6 +157,7 @@ def configfile_print_scope(scope: str, show_all: bool = False) -> None:
     if not show_all:
         params = list(filter(lambda p: p.is_changed, params))
 
+    import pwndbg.gdblib.config
     if params:
         if not show_all:
             print(hint("Showing only changed values:"))
