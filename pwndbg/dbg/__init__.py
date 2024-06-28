@@ -284,7 +284,6 @@ class Debugger:
         """
         raise NotImplementedError()
 
-<<<<<<< HEAD
     def inferior(self) -> Process | None:
         """
         Returns a handle to the currently running inferior process.
