@@ -266,6 +266,24 @@ class Debugger:
         """
         raise NotImplementedError()
 
+    def selected_inferior(self) -> Process | None:
+        """
+        The inferior process currently being focused on in this interactive session.
+        """
+        raise NotImplementedError()
+
+    def selected_thread(self) -> Thread | None:
+        """
+        The thread currently being focused on in this interactive session.
+        """
+        raise NotImplementedError()
+
+    def selected_frame(self) -> Frame | None:
+        """
+        The stack frame currently being focused on in this interactive session.
+        """
+        raise NotImplementedError()
+
     def add_command(
         self, name: str, handler: Callable[[Debugger, str, bool], None]
     ) -> CommandHandle:

@@ -396,7 +396,6 @@ class GDB(pwndbg.dbg_mod.Debugger):
             pass
         return None
 
- 
     @override
     def inferior(self) -> pwndbg.dbg_mod.Process | None:
         return GDBProcess(gdb.selected_inferior())
