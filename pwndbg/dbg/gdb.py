@@ -162,6 +162,17 @@ class GDBProcess(pwndbg.dbg_mod.Process):
         return pwndbg.gdblib.symbol.get(address) or None
 
     @override
+    def types_with_name(self, name: str) -> Sequence[pwndbg.dbg_mod.Type]:
+        # In GDB, process-level lookups for types are always global.
+        #
+        # Additionally, the GDB type lookup function only ever returns the first
+        # match, so this will always return a list with one element.
+        try:
+            return [GDBType(gdb.lookup_type(name))]
+        except gdb.error:
+            return []
+
+    @override
     def arch(self) -> pwndbg.dbg_mod.Arch:
         return GDBLibArch()
 
@@ -203,6 +214,11 @@ class GDBType(pwndbg.dbg_mod.Type):
 
     def __init__(self, inner: gdb.Type):
         self.inner = inner
+
+    @property
+    @override
+    def sizeof(self) -> int:
+        return self.inner.sizeof
 
     @property
     @override

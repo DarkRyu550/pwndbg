@@ -33,7 +33,7 @@ def map_type_code(type: lldb.SBType) -> pwndbg.dbg_mod.TypeCode:
     """
     Determines the type code of a given LLDB SBType.
     """
-    c = type.GetTypeCode()
+    c = type.GetTypeClass()
     f = type.GetTypeFlags()
 
     assert c != lldb.eTypeClassInvalid, "passed eTypeClassInvalid to map_type_code"
@@ -82,6 +82,11 @@ def _is_optimized_out(value: lldb.SBValue) -> bool:
 class LLDBType(pwndbg.dbg_mod.Type):
     def __init__(self, inner: lldb.SBType):
         self.inner = inner
+
+    @property
+    @override
+    def sizeof(self) -> int:
+        return self.inner.GetByteSize()
 
     @property
     @override
@@ -204,9 +209,7 @@ class LLDBValue(pwndbg.dbg_mod.Value):
         assert isinstance(type, LLDBType)
         t: LLDBType = type
 
-        return LLDBValue(self.inner.cast(t.inner))
-
-        return LLDBValue(self.inner.Cast(type.inner))
+        return LLDBValue(self.inner.Cast(t.inner))
 
 
 class LLDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
@@ -290,6 +293,9 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
 
         return ctx.symbol.name
 
+    def types_with_name(self, name: str) -> Sequence[pwndbg.dbg_mod.Type]:
+        types = self.target.FindTypes(name)
+        return [LLDBType(types.GetTypeAtIndex(i)) for i in range(types.GetSize())]
 
 class LLDBCommand(pwndbg.dbg_mod.CommandHandle):
     def __init__(self, handler_name: str, command_name: str):
