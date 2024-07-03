@@ -32,17 +32,6 @@ class GDBLibArch(pwndbg.dbg_mod.Arch):
         return pwndbg.gdblib.arch.ptrsize
 
 
-class GDBModule(pwndbg.dbg_mod.Module):
-    @override
-    def name(self) -> str | None:
-        return None
-    
-    @override
-    def arch(self) -> pwndbg.dbg_mod.Arch:
-        # We should handle cases like Windows's ARM64EC here.
-        return GDBLibArch()
-
-
 class GDBRegisters(pwndbg.dbg_mod.Registers):
     def __init__(self, frame: GDBFrame):
         self.frame = frame
@@ -92,11 +81,6 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
     def regs(self) -> pwndbg.dbg_mod.Registers:
         return GDBRegisters(self)
 
-    @override
-    def module(self) -> pwndbg.dbg_mod.Module:
-        # For now, this isn't the real module, but it's good enough for now to
-        # be used to determine the architecture.
-        return GDBModule()
 
 class GDBThread(pwndbg.dbg_mod.Thread):
     def __init__(self, inner: gdb.InferiorThread):
