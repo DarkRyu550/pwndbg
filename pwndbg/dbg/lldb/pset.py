@@ -1,11 +1,12 @@
+from __future__ import annotations
+
 import argparse
+from typing import Any
 
 import pwndbg
-import pwndbg.commands
 import pwndbg.color.message as message
+import pwndbg.commands
 import pwndbg.lib.config as cfg
-
-from typing import Any
 
 parser = argparse.ArgumentParser(description="Changes a Pwndbg setting.")
 parser.add_argument(
@@ -21,6 +22,7 @@ parser.add_argument(
     help="Value to change the setting into",
 )
 
+
 @pwndbg.commands.ArgparsedCommand(parser)
 def pset(name, value):
     name = name.replace("-", "_")
@@ -31,16 +33,18 @@ def pset(name, value):
     param = pwndbg.config.params[name]
     try:
         new_value = parse_value(param, value)
-    except InvalidParse as e:
+    except InvalidParse:
         print(message.error("Invalid value '{value}' for setting '{name}': {e.message}"))
         return
-    
+
     param.value = new_value
     for trigger in pwndbg.config.triggers[param.name]:
         trigger()
 
+
 class InvalidParse(Exception):
     pass
+
 
 def parse_value(param: pwndbg.lib.config.Parameter, expression: str) -> Any:
     param_class = param.param_class
@@ -50,7 +54,8 @@ def parse_value(param: pwndbg.lib.config.Parameter, expression: str) -> Any:
         elif expression == "off":
             return False
         raise InvalidParse("expected 'on' or 'off'")
-    elif param_class == cfg.PARAM_ZINTEGER:
+
+    if param_class == cfg.PARAM_ZINTEGER:
         try:
             return int(expression, 0)
         except ValueError:
@@ -79,7 +84,9 @@ def parse_value(param: pwndbg.lib.config.Parameter, expression: str) -> Any:
             raise InvalidParse("expected an integer value")
     elif param_class == cfg.PARAM_ENUM:
         if expression not in param.enum_sequence:
-            raise InvalidParse(f"expected one of {', '.join([f'\'{name}\'' for val in param.enum_sequence])}")
+            raise InvalidParse(
+                f"expected one of {', '.join([f'\'{name}\'' for name in param.enum_sequence])}"
+            )
         return expression
     elif param_class == cfg.PARAM_OPTIONAL_FILENAME:
         # We just hope the name is correct :)
@@ -93,12 +100,12 @@ def parse_value(param: pwndbg.lib.config.Parameter, expression: str) -> Any:
             return None
         raise InvalidParse("expected 'on', 'off', or 'auto'")
     elif param_class == cfg.PARAM_INTEGER:
-         try:
+        try:
             value = int(expression, 0)
             if value == 0:
                 raise InvalidParse("value must not be zero")
             return value
-         except ValueError:
+        except ValueError:
             raise InvalidParse("expected an integer value")
     elif param_class == cfg.PARAM_UINTEGER:
         try:
@@ -110,4 +117,3 @@ def parse_value(param: pwndbg.lib.config.Parameter, expression: str) -> Any:
             raise InvalidParse("expected an integer value")
 
     raise NotImplementedError(f"Unknown parameter class {param_class}")
-

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+from typing import Any
 from typing import Callable
 
+import pwndbg
 from pwndbg.color import ColorConfig
 from pwndbg.color import ColorParamSpec
 from pwndbg.color import normal
-
-import pwndbg
 
 ColorFunction = Callable[[str], str]
 
@@ -29,6 +29,7 @@ def sym_name(address: int) -> str | None:
     Retrieves the name of the symbol at the given address, if it exists
     """
     return pwndbg.dbg.inferior().symbol_name_at_address(address)
+
 
 def get_address_and_symbol(address: int) -> str:
     """
@@ -62,7 +63,9 @@ def attempt_colorized_symbol(address: int) -> str | None:
 # function. This is probably more lenient than we'd really like.
 #
 # TODO: Remove the exception for gdb.Value case from `pwndbg.color.memory.get`.
-def get(address: int | pwndbg.dbg_mod.Value | Any, text: str | None = None, prefix: str | None = None) -> str:
+def get(
+    address: int | pwndbg.dbg_mod.Value | Any, text: str | None = None, prefix: str | None = None
+) -> str:
     """
     Returns a colorized string representing the provided address.
 
@@ -74,6 +77,7 @@ def get(address: int | pwndbg.dbg_mod.Value | Any, text: str | None = None, pref
     address = int(address)
 
     import pwndbg
+
     vmmap = pwndbg.dbg.inferior().vmmap()
 
     page = None
@@ -82,7 +86,7 @@ def get(address: int | pwndbg.dbg_mod.Value | Any, text: str | None = None, pref
             page = entry
 
     # The regular search failed. If we have access to `gdblib`, try the native
-    # search functionality it provides. 
+    # search functionality it provides.
     #
     # Currently, the `gdblib` version of the search differs from the regular
     # search in that it will explore and discover ranges, even when they are not
@@ -92,10 +96,11 @@ def get(address: int | pwndbg.dbg_mod.Value | Any, text: str | None = None, pref
     # We might want to move that discovery behavior out of `gdblib` and into the
     # agnostic library in the future. If/when that happens, we should get rid of
     # this.
-    # 
+    #
     # TODO: Remove this if memory range discovery behavior is no longer exclusive to `gdblib.vmmap`.
     if not page and pwndbg.dbg.is_gdblib_available():
         import pwndbg.gdblib.vmmap
+
         page = pwndbg.gdblib.vmmap.find(address)
 
     color: Callable[[str], str]

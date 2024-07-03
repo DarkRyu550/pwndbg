@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import os
 import random
 import sys
-import os
 from typing import Any
 from typing import Callable
 from typing import List
 from typing import Tuple
-from collections.abc import Sequence
 
 import lldb
 from typing_extensions import override
@@ -224,8 +223,9 @@ class LLDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
         return True
 
     @override
-    def ranges(self) -> Sequence[pwndbg.lib.memory.Page]:
+    def ranges(self) -> List[pwndbg.lib.memory.Page]:
         return self.pages
+
 
 class LLDBProcess(pwndbg.dbg_mod.Process):
     def __init__(self, process: lldb.SBProcess, target: lldb.SBTarget):
@@ -249,8 +249,9 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         pages = []
         for i in range(regions.GetSize()):
             region = lldb.SBMemoryRegionInfo()
-            assert regions.GetMemoryRegionAtIndex(i, region), \
-                "invalid region despite being in bounds"
+            assert regions.GetMemoryRegionAtIndex(
+                i, region
+            ), "invalid region despite being in bounds"
 
             perms = 0
             if region.IsReadable():
@@ -264,17 +265,18 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
             # whether it is mapped or not.
             offset = 0 if not region.IsMapped() else 1
 
-            pages.append(pwndbg.lib.memory.Page(
-                start=region.GetRegionBase(),
-                size=region.GetRegionEnd() - region.GetRegionBase(),
-                flags=perms,
-                offset=offset,
-                objfile=region.GetName()
-            ))
+            pages.append(
+                pwndbg.lib.memory.Page(
+                    start=region.GetRegionBase(),
+                    size=region.GetRegionEnd() - region.GetRegionBase(),
+                    flags=perms,
+                    offset=offset,
+                    objfile=region.GetName(),
+                )
+            )
 
         return LLDBMemoryMap(pages)
 
-        
     @override
     def symbol_name_at_address(self, address: int) -> str | None:
         addr = lldb.SBAddress(address, self.target)
@@ -287,6 +289,7 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
             return None
 
         return ctx.symbol.name
+
 
 class LLDBCommand(pwndbg.dbg_mod.CommandHandle):
     def __init__(self, handler_name: str, command_name: str):

@@ -10,6 +10,7 @@ from typing import Tuple
 from elftools.elf.constants import SH_FLAGS
 from elftools.elf.elffile import ELFFile
 
+import pwndbg.aglib.arch
 import pwndbg.color.memory as M
 import pwndbg.commands
 from pwndbg.color import cyan
@@ -17,11 +18,10 @@ from pwndbg.color import green
 from pwndbg.color import red
 from pwndbg.commands import CommandCategory
 from pwndbg.lib.memory import Page
-import pwndbg.aglib.arch
 
 if pwndbg.dbg.is_gdblib_available():
-    import pwndbg.gdblib.vmmap
     import pwndbg.gdblib.elf
+    import pwndbg.gdblib.vmmap
 
 integer_types = (int, pwndbg.dbg_mod.Value)
 
@@ -242,7 +242,7 @@ def vmmap(
         return
 
     if gaps:
-        print_vmmap_gaps(total_pages)
+        print_vmmap_gaps(tuple(total_pages))
         return
 
     print(M.legend())
@@ -279,7 +279,11 @@ if pwndbg.dbg.is_gdblib_available():
     parser.add_argument("start", help="Starting virtual address")
     parser.add_argument("size", help="Size of the address space, in bytes")
     parser.add_argument(
-        "flags", nargs="?", type=str, default="", help="Flags set by the ELF file, see PF_X, PF_R, PF_W"
+        "flags",
+        nargs="?",
+        type=str,
+        default="",
+        help="Flags set by the ELF file, see PF_X, PF_R, PF_W",
     )
     parser.add_argument(
         "offset",
@@ -317,12 +321,13 @@ if pwndbg.dbg.is_gdblib_available():
     def vmmap_clear() -> None:
         pwndbg.gdblib.vmmap.clear_custom_page()
 
-
     parser = argparse.ArgumentParser(description="Load virtual memory map pages from ELF file.")
     parser.add_argument(
-        "filename", nargs="?", type=str, help="ELF filename, by default uses current loaded filename."
+        "filename",
+        nargs="?",
+        type=str,
+        help="ELF filename, by default uses current loaded filename.",
     )
-
 
     @pwndbg.commands.ArgparsedCommand(parser, category=CommandCategory.MEMORY)
     @pwndbg.commands.OnlyWhenRunning
