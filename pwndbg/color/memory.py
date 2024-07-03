@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+from typing import Any
 from typing import Callable
 
 import pwndbg.integration
 from pwndbg.color import ColorConfig
 from pwndbg.color import ColorParamSpec
 from pwndbg.color import normal
-
-import pwndbg
 
 ColorFunction = Callable[[str], str]
 

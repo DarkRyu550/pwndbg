@@ -7,8 +7,8 @@ from typing import Optional
 from pwnlib.util.cyclic import cyclic
 from pwnlib.util.cyclic import cyclic_find
 
-import pwndbg.commands
 import pwndbg.aglib.arch
+import pwndbg.commands
 from pwndbg.color import message
 
 parser = argparse.ArgumentParser(description="Cyclic pattern creator/finder.")

@@ -4,6 +4,8 @@ import contextlib
 import signal
 from typing import Any
 from typing import List
+from typing import Literal
+from typing import Sequence
 from typing import Tuple
 from typing import TypeVar
 
@@ -18,6 +20,7 @@ import pwndbg.gdblib.events
 from pwndbg.gdblib import gdb_version
 from pwndbg.gdblib import load_gdblib
 
+
 T = TypeVar("T")
 
 
@@ -25,16 +28,19 @@ class GDBLibArch(pwndbg.dbg_mod.Arch):
     @override
     def endian(self) -> Literal["little", "big"]:
         import pwndbg.gdblib.arch
+
         return pwndbg.gdblib.arch.endian
 
     @override
     def arch(self) -> str:
         import pwndbg.gdblib.arch
+
         return pwndbg.gdblib.arch.name
 
     @override
     def ptrsize(self) -> int:
         import pwndbg.gdblib.arch
+
         return pwndbg.gdblib.arch.ptrsize
 
 
@@ -127,6 +133,7 @@ class GDBThread(pwndbg.dbg_mod.Thread):
             value = gdb.newest_frame()
         return GDBFrame(value)
 
+
 class GDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
     def __init__(self, reliable_perms: bool, qemu: bool, pages: Sequence[pwndbg.lib.memory.Page]):
         self.reliable_perms = reliable_perms
@@ -144,6 +151,7 @@ class GDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
     @override
     def ranges(self) -> Sequence[pwndbg.lib.memory.Page]:
         return self.pages
+
 
 class GDBProcess(pwndbg.dbg_mod.Process):
     def __init__(self, inner: gdb.Inferior):
@@ -170,16 +178,17 @@ class GDBProcess(pwndbg.dbg_mod.Process):
         reliable_perms = not (pwndbg.gdblib.qemu.is_qemu_usermode() and gdb_version[0] < 12)
 
         return GDBMemoryMap(reliable_perms, qemu, pages)
-    
+
     @override
     def symbol_name_at_address(self, address: int) -> str | None:
         import pwndbg.gdblib.symbol
+
         return pwndbg.gdblib.symbol.get(address) or None
-    
+
     @override
     def arch(self) -> pwndbg.dbg_mod.Arch:
         return GDBLibArch()
-       
+
 
 class GDBCommand(gdb.Command):
     def __init__(

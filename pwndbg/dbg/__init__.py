@@ -9,9 +9,12 @@ from typing import Any
 from typing import Callable
 from typing import List
 from typing import Literal
+from typing import Sequence
 from typing import Tuple
 from typing import TypeVar
 from collections.abc import Sequence
+
+import pwndbg.lib.memory
 
 dbg: Debugger = None
 
@@ -72,6 +75,7 @@ class Frame:
         """
         raise NotImplementedError()
 
+
 class Thread:
     def bottom_frame(self) -> Frame:
         """
@@ -103,6 +107,7 @@ class MemoryMap:
         """
         raise NotImplementedError()
 
+
 class Process:
     def threads(self) -> List[Thread]:
         """
@@ -122,7 +127,7 @@ class Process:
         Returns the virtual memory map of this process.
         """
         raise NotImplementedError()
-    
+
     # We'll likely have to expand this into a Symbol class and change this to a
     # `symbol_at_address` function later on.
     def symbol_name_at_address(self, address: int) -> str | None:
