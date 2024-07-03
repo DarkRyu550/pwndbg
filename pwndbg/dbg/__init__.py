@@ -139,6 +139,15 @@ class Process:
         """
         raise NotImplementedError()
 
+    # There is an interesting counterpart to this method that exists at the
+    # module level. Depending on how we want to implement support for multiple
+    # modules, it might be interesting to repeat it there.
+    def types_with_name(self, name: str) -> Sequence[Type]:
+        """
+        Returns a list of all types in this process that match the given name.
+        """
+        raise NotImplementedError()
+
     def arch(self) -> Arch:
         """
         The default architecture of this process.
@@ -192,6 +201,12 @@ class Type:
     """
     Class representing a type in the context of an inferior process.
     """
+
+    @property
+    def sizeof(self) -> int:
+        """
+        The size of this type, in bytes.
+        """
 
     @property
     def alignof(self) -> int:

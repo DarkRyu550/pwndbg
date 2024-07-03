@@ -108,6 +108,11 @@ class LLDBType(pwndbg.dbg_mod.Type):
 
     @property
     @override
+    def sizeof(self) -> int:
+        return self.inner.GetByteSize()
+
+    @property
+    @override
     def alignof(self) -> int:
         return self.inner.GetByteAlign()
 
@@ -313,6 +318,10 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
             return None
 
         return ctx.symbol.name
+
+    def types_with_name(self, name: str) -> Sequence[pwndbg.dbg_mod.Type]:
+        types = self.target.FindTypes(name)
+        return [LLDBType(types.GetTypeAtIndex(i)) for i in range(types.GetSize())]
 
     @override
     def arch(self) -> pwndbg.dbg_mod.Arch:

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import pwndbg
+import gdb
+
+import pwndbg.aglib.typeinfo
 import pwndbg.gdblib.abi
 import pwndbg.gdblib.events
 import pwndbg.gdblib.file
@@ -19,7 +22,25 @@ from pwndbg.gdblib import arch_mod as arch_mod_gdblib
 @pwndbg.dbg.event_handler(EventType.START)
 @pwndbg.dbg.event_handler(EventType.STOP)
 def update_typeinfo() -> None:
+    # Initialize the typing information in aglib.
+    # Workaround for Rust stuff, see https://github.com/pwndbg/pwndbg/issues/855
+    lang = gdb.execute("show language", to_string=True)
+    if "rust" not in lang:
+        restore_lang = None
+    else:
+        gdb.execute("set language c")
+        if '"auto;' in lang:
+            restore_lang = "auto"
+        else:
+            restore_lang = "rust"
+
     pwndbg.gdblib.typeinfo.update()
+    pwndbg.aglib.typeinfo.update()
+
+    # Rust workaround part 2
+    if restore_lang:
+        gdb.execute(f"set language {restore_lang}")
+
 
 
 @pwndbg.dbg.event_handler(EventType.START)
