@@ -45,23 +45,6 @@ class Arch:
         """
         raise NotImplementedError()
 
-class Module:
-    """
-    A module loaded into the address space of the process.
-    """
-
-    def name(self) -> str | None:
-        """
-        The name of this module, if available.
-        """
-        raise NotImplementedError()
-
-    def arch(self) -> Arch:
-        """
-        The architecture of code in this module.
-        """
-        raise NotImplementedError()
-
 
 class Registers:
     """
@@ -88,13 +71,6 @@ class Frame:
         Access the values of the registers in this frame.
         """
         raise NotImplementedError()
-
-    def module(self) -> Module:
-        """
-        Module containing the code in this frame.
-        """
-        raise NotImplementedError()
-
 
 class Thread:
     def bottom_frame(self) -> Frame:

@@ -38,32 +38,6 @@ class GDBLibArch(pwndbg.dbg_mod.Arch):
         return pwndbg.gdblib.arch.ptrsize
 
 
-class GDBModule(pwndbg.dbg_mod.Module):
-    @override
-    def name(self) -> str | None:
-        return None
-    
-    @override
-    def arch(self) -> pwndbg.dbg_mod.Arch:
-        # We should handle cases like Windows's ARM64EC here.
-        return GDBLibArch()
-
-
-class GDBRegisters(pwndbg.dbg_mod.Registers):
-    def __init__(self, frame: GDBFrame):
-        self.frame = frame
-
-    @override
-    def by_name(self, name: str) -> pwndbg.dbg_mod.Value | None:
-        try:
-            return GDBValue(self.frame.inner.read_register(name))
-        except gdb.error:
-            # GDB throws an exception if the name is unknown, we just return
-            # None when that is the case.
-            pass
-        return None
-
-
 def parse_and_eval(expression: str, global_context: bool) -> gdb.Value:
     """
     Same as `gdb.parse_and_eval`, but only uses `global_context` if it is
@@ -109,6 +83,21 @@ def selection(target: T, get_current: Callable[[], T], select: Callable[[T], Non
             select(current)
 
 
+class GDBRegisters(pwndbg.dbg_mod.Registers):
+    def __init__(self, frame: GDBFrame):
+        self.frame = frame
+    
+    @override
+    def by_name(self, name: str) -> pwndbg.dbg_mod.Value | None:
+        try:
+            return GDBValue(self.frame.inner.read_register(name))
+        except gdb.error:
+            # GDB throws an exception if the name is unknown, we just return
+            # None when that is the case.
+            pass
+        return None
+
+
 class GDBFrame(pwndbg.dbg_mod.Frame):
     def __init__(self, inner: gdb.Frame):
         self.inner = inner
@@ -127,11 +116,6 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
     def regs(self) -> pwndbg.dbg_mod.Registers:
         return GDBRegisters(self)
 
-    @override
-    def module(self) -> pwndbg.dbg_mod.Module:
-        # For now, this isn't the real module, but it's good enough for now to
-        # be used to determine the architecture.
-        return GDBModule()
 
 class GDBThread(pwndbg.dbg_mod.Thread):
     def __init__(self, inner: gdb.InferiorThread):
