@@ -384,6 +384,13 @@ class GDB(pwndbg.dbg_mod.Debugger):
         prompt.show_hint()
 
     @override
+    def create_value(value: int, type: Type | None = None) -> Value:
+        v = GDBValue(gdb.Value(value))
+        if type:
+            v = v.Cast(type)
+        return v
+
+    @override
     def add_command(
         self, name: str, handler: Callable[[pwndbg.dbg_mod.Debugger, str, bool], None]
     ) -> pwndbg.dbg_mod.CommandHandle:

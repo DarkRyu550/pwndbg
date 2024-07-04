@@ -361,6 +361,18 @@ class Debugger:
         """
         raise NotImplementedError()
 
+    # In LLDB, a value exists in the scope of a target, and needs to be created
+    # referencing the right target in order for memory-related operations on it
+    # to be meaningful. This means that to implement this function in debugger
+    # scope, things get _bad_ very quick under LLDB.
+    def create_value(value: int, type: Type | None = None) -> Value:
+        """
+        Create a new value in the context of this debugger, with the given value
+        and, optionally, type. If no type is provided, one will be chosen
+        automatically.
+        """
+        raise NotImplementedError()
+
     def history(self, last: int = 10) -> List[Tuple[int, str]]:
         """
         The command history of the interactive session in this debugger.
