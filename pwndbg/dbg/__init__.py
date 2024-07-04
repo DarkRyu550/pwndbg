@@ -130,6 +130,25 @@ class Process:
         """
         raise NotImplementedError()
 
+    def read_memory(self, address: int, size: int, partial: bool = False) -> bytearray:
+        """
+        Reads the requested number of bytes from the address given in the memory
+        space of this process. Will read as many bytes as possible starting at
+        that location, and returns how many were read.
+
+        Throws an exception if reading fails and partial is False.
+        """
+        raise NotImplementedError()
+
+    def write_memory(self, address: int, data: bytearray, partial: bool = False) -> int:
+        """
+        Writes as many bytes from the given data buffer as possible into the
+        given address in the memory space of this process.
+
+        Throws an exception if writing fails and partial is False.
+        """
+        raise NotImplementedError()
+
     def create_value(self, value: int, type: Type | None = None) -> Value:
         """
         Create a new value in the context of this process, with the given value

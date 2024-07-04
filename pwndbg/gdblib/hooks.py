@@ -42,7 +42,6 @@ def update_typeinfo() -> None:
         gdb.execute(f"set language {restore_lang}")
 
 
-
 @pwndbg.dbg.event_handler(EventType.START)
 @pwndbg.dbg.event_handler(EventType.STOP)
 @pwndbg.dbg.event_handler(EventType.NEW_MODULE)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import re
 import signal
 from typing import Any
 from typing import List
@@ -19,6 +20,8 @@ import pwndbg.gdblib
 import pwndbg.gdblib.events
 from pwndbg.gdblib import gdb_version
 from pwndbg.gdblib import load_gdblib
+from pwndbg.lib.memory import PAGE_MASK
+from pwndbg.lib.memory import PAGE_SIZE
 
 T = TypeVar("T")
 
@@ -181,6 +184,59 @@ class GDBProcess(pwndbg.dbg_mod.Process):
 
         return GDBMemoryMap(reliable_perms, qemu, pages)
 
+    @override
+    def read_memory(self, address: int, size: int, partial: bool = False) -> bytearray:
+        result = b""
+        count = max(int(size), 0)
+        addr = address
+
+        try:
+            result = gdb.selected_inferior().read_memory(addr, count)
+        except gdb.error as e:
+            if not partial:
+                raise pwndbg.dbg_mod.Error(e)
+
+            message = str(e)
+
+            stop_addr = addr
+            match = re.search(r"Memory at address (\w+) unavailable\.", message)
+            if match:
+                stop_addr = int(match.group(1), 0)
+            else:
+                stop_addr = int(message.split()[-1], 0)
+
+            if stop_addr != addr:
+                return self.read_memory(addr, stop_addr - addr)
+
+            # QEMU will return the start address as the failed
+            # read address.  Try moving back a few pages at a time.
+            stop_addr = addr + count
+
+            # Move the stop address down to the previous page boundary
+            stop_addr &= PAGE_MASK
+            while stop_addr > addr:
+                result = self.read_memory(addr, stop_addr - addr)
+
+                if result:
+                    return bytearray(result)
+
+                # Move down by another page
+                stop_addr -= PAGE_SIZE
+
+        return bytearray(result)
+
+    @override
+    def write_memory(self, address: int, data: bytearray, partial: bool = False) -> int:
+        try:
+            # Throws an exception if can't access memory
+            gdb.selected_inferior().write_memory(address, data)
+        except gdb.MemoryError as e:
+            if partial:
+                raise NotImplementedError("partial writes are currently not supported under gdb")
+
+            raise pwndbg.dbg_mod.Error(e)
+        return len(data)
+
     # Note that in GDB this method does not depend on the process at all!
     #
     # From the point-of-view of the GDB implementation, this could very well be
@@ -191,7 +247,9 @@ class GDBProcess(pwndbg.dbg_mod.Process):
     # Opting instead to have this method be at this level, although slightly
     # redundant in GDB, saves a ton of work in LLDB.
     @override
-    def create_value(self, value: int, type: pwndbg.dbg_mod.Type | None = None) -> pwndbg.dbg_mod.Value:
+    def create_value(
+        self, value: int, type: pwndbg.dbg_mod.Type | None = None
+    ) -> pwndbg.dbg_mod.Value:
         v = GDBValue(gdb.Value(value))
         if type:
             v = v.cast(type)

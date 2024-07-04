@@ -4,10 +4,11 @@ Common types.
 
 from __future__ import annotations
 
-import pwndbg
 import sys
 from typing import Dict
 from typing import Optional
+
+import pwndbg
 
 module = sys.modules[__name__]
 
@@ -22,7 +23,7 @@ void: pwndbg.dbg_mod.Type
 uint8: pwndbg.dbg_mod.Type
 uint16: pwndbg.dbg_mod.Type
 uint32: pwndbg.dbg_mod.Type
-uint64: pwndbg.dbg_mod.Type = None
+uint64: pwndbg.dbg_mod.Type
 unsigned: Dict[int, pwndbg.dbg_mod.Type]
 
 int8: pwndbg.dbg_mod.Type

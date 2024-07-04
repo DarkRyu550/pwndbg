@@ -6,6 +6,7 @@ from typing import Any
 from typing import Callable
 from typing import List
 from typing import Literal
+from typing import Sequence
 from typing import Tuple
 
 import lldb
@@ -295,8 +296,7 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
             if region.IsExecutable():
                 perms |= os.X_OK
 
-            # LLDB doesn't actually tell us the offset of the mapped file, just
-            # whether it is mapped or not.
+            # LLDB doesn't actually tell us the offset of a mapped file.
             offset = 0
 
             pages.append(
@@ -311,9 +311,108 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
 
         return LLDBMemoryMap(pages)
 
+    def find_largest_range_len(
+        self, min_search: int, max_search: int, test: Callable[[int], bool]
+    ) -> int:
+        """
+        Finds the largest memory range given a minimum and a maximum value
+        for the size of the rage. This is a binary search, so it should do on
+        the order of log2(max_search - min_search) attempts before it arrives at
+        an answer.
+        """
+        # See if there's even any region we could possibly read.
+        r = max_search - min_search
+        if r == 0:
+            return min_search if test(min_search) else 0
+
+        # Pick the midpoint from our previous search.
+        mid_search = min_search + r // 2
+
+        if not test(mid_search):
+            # No dice. This means the limit of the mapping must come before the
+            # midpoint.
+            return self.find_largest_range_len(min_search, mid_search, test)
+
+        # We can read this range. This means that the limit of the mapping must
+        # come after the midpoint, or be equal to it, exactly.
+        after = self.find_largest_range_len(mid_search + 1, max_search, test)
+        if after > 0:
+            # It came after the midpoint.
+            return after
+
+        # We are exactly at the limit.
+        return min_search
+
     @override
-    def create_value(self, value: int, type: pwndbg.dbg_mod.Type | None = None) -> pwndbg.dbg_mod.Value:
+    def read_memory(self, address: int, size: int, partial: bool = False) -> bytearray:
+        if size == 0:
+            return bytearray()
+
+        # Try to read exactly the requested size.
+        e = lldb.SBError()
+        buffer = self.process.ReadMemory(address, size, e)
+        if buffer:
+            return buffer
+        elif not partial:
+            raise pwndbg.dbg_mod.Error(f"could not read {size:#x} bytes: {e}")
+
+        # At this point, we're in a bit of a pickle. LLDB doesn't give us enough
+        # information to find out what the last address it can read from is. For
+        # all we know, it could be any address in the range (address, address+size),
+        # so we have to get creative.
+        #
+        # First, try to derive that information from the mmap.
+        first_page = None
+        last_page = None
+        vmmap_size = 0
+        for page in self.vmmap().ranges():
+            if address in page and not first_page:
+                first_page = page
+                last_page = page
+                size = page.memsz - (address - page.start)
+            elif last_page:
+                if page.start <= last_page.end:
+                    last_page = page
+                    size += page.memsz
+                else:
+                    break
+
+        if vmmap_size > 0:
+            try:
+                return self.read_memory(address, vmmap_size, partial=False)
+            except pwndbg.dbg_mod.Error:
+                # Unreliable memory map?
+                pass
+
+        # Second, try to do a binary search for the limit of the range.
+        def test(s):
+            b = self.process.ReadMemory(address, s, e)
+            return b is not None
+
+        size = self.find_largest_range_len(0, size, test)
+        if size > 0:
+            return bytearray(self.process.ReadMemory(address, size, e))
+        else:
+            return bytearray()
+
+    @override
+    def write_memory(self, address: int, data: bytearray, partial: bool = False) -> int:
+        if len(data) == 0:
+            return 0
+
+        e = lldb.SBError()
+        count = self.process.WriteMemory(address, data, e)
+        if count < len(data) and not partial:
+            raise pwndbg.dbg_mod.Error(f"could not write {len(data)} bytes: {e}")
+
+        return count
+
+    @override
+    def create_value(
+        self, value: int, type: pwndbg.dbg_mod.Type | None = None
+    ) -> pwndbg.dbg_mod.Value:
         import struct
+
         b = struct.pack("<Q", value)
 
         e = lldb.SBError()
@@ -321,21 +420,20 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         data.SetDataWithOwnership(e, b, lldb.eByteOrderLittle, len(b))
 
         import pwndbg.aglib.typeinfo
+
         u64 = pwndbg.aglib.typeinfo.uint64
 
         assert u64, "aglib.typeinfo must have already been set up"
-        assert isinstance(u64, LLDBType), \
-            "aglib.typeinfo contains non-LLDBType values"
+        assert isinstance(u64, LLDBType), "aglib.typeinfo contains non-LLDBType values"
         u64: LLDBType = u64
 
-        value = self.target.CreateValueFromData(f"#0", data, u64.inner)
+        value = self.target.CreateValueFromData("#0", data, u64.inner)
         value = LLDBValue(value)
 
         if type:
             return value.cast(type)
         else:
             return value
-
 
     @override
     def symbol_name_at_address(self, address: int) -> str | None:
