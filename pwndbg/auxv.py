@@ -98,8 +98,7 @@ class AUXV(Dict[str, Union[int, str]]):
 
         if name in ["AT_EXECFN", "AT_PLATFORM"]:
             try:
-                inf = pwndbg.dbg.selected_inferior()
-                value = inf.create_value(value).cast(pwndbg.aglib.typeinfo.pchar).string()
+                value = gdb.Value(value).cast(pwndbg.gdblib.typeinfo.pchar).string()
             except Exception:
                 value = "couldnt read AUXV!"
 
@@ -203,8 +202,7 @@ def walk_stack2(offset: int = 0) -> AUXV:
     # 5) Vacuum up between the two.
     #
     end = find_stack_boundary(sp)
-    inf = pwndbg.dbg.selected_inferior()
-    p = inf.create_value(end).cast(pwndbg.aglib.typeinfo.ulong.pointer())
+    p = gdb.Value(end).cast(pwndbg.gdblib.typeinfo.ulong.pointer())
 
     p -= offset
 
