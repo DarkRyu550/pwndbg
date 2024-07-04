@@ -103,6 +103,8 @@ def _is_optimized_out(value: lldb.SBValue) -> bool:
 
 
 class LLDBType(pwndbg.dbg_mod.Type):
+    inner: lldb.SBType
+
     def __init__(self, inner: lldb.SBType):
         self.inner = inner
 
@@ -233,6 +235,77 @@ class LLDBValue(pwndbg.dbg_mod.Value):
         t: LLDBType = type
 
         return LLDBValue(self.inner.Cast(t.inner))
+
+
+class LLDBCreatedValue(LLDBValue):
+    """
+    Represents a value that was created within Pwndbg using `dbg.create_value()`,
+    rather than organically pulled from the inferior.
+
+    Because some of the functions in this value might defererence it, we have
+    to make sure our inner value has the right execution context before we
+    try to dereference.
+    """
+    data: lldb.SBData
+    dbg: LLDB
+    last_target: lldb.SBTarget
+    this_seq: int
+
+    seq: int = 0
+
+    def get_target(self) -> lldb.SBTarget:
+        """
+        Returns the target in the topmost execution context of the debugger,
+        or, failing that, the first target in general, or, failing that, the
+        dummy target.
+        """
+        if len(self.dbg.exec_states) > 0:
+            return self.dbg.exec_states[-1].target
+        
+        targets = self.dbg.debugger.GetNumTargets()
+        assert targets <= 1, \
+            "More than one LLDB target. This should've been caught earlier"
+        if targets == 0:
+            return self.dbg.debugger.GetDummyTarget()
+        else:
+            return self.dbg.debugger.GetTargetAtIndex(0)
+
+    def check_rebuild(self):
+        """
+        Checks whether the target has changed since the inner value was last
+        created, and recreate it against the new target, if so.
+        """
+        curr_target = self.get_target()
+        if curr_target != self.last_target:
+            self.inner = curr_target.CreateValueFromData(f"#{self.this_seq}", self.data, self.ty)
+            self.last_target = curr_target
+
+
+    def __init__(self, data: lldb.SBData, ty: lldb.SBType, dbg: LLDB):
+        self.data = data
+        self.dbg = dbg
+        self.last_target = None
+        self.ty = ty
+
+        self.this_seq = LLDBCreatedValue.seq
+        LLDBCreatedValue.seq += 1
+        
+        self.check_rebuild()
+
+    @override
+    def dereference(self) -> pwndbg.dbg_mod.Value:
+        self.check_rebuild()
+        return super().dereference()
+
+    @override
+    def string(self) -> str:
+        self.check_rebuild()
+        return super().string()
+
+    @override
+    def __int__(self) -> int:
+        self.check_rebuild()
+        return super().__int__()
 
 
 class LLDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
@@ -437,6 +510,25 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         return LLDBCommand(name, command_name)
 
+    @override
+    def create_value(self, value: int, type: Type | None = None) -> Value:
+        import struct
+        b = struct.pack("<Q", value)
+        
+        e = lldb.SBError()
+        data = lldb.SBData()
+        data.SetDataWithOwnership(e, b, lldb.eByteOrderLittle, len(b))
+
+        if not type:
+            import pwndbg.aglib.typeinfo
+            if pwndbg.aglib.typeinfo.uint64:
+                type = pwndbg.aglib.typeinfo.uint64
+            else:
+                type = LLDBType(self.debugger.GetDummyTarget().FindFirstType("unsigned long"))
+        assert type.sizeof == len(b)
+
+        return LLDBCreatedValue(data, type.inner, self)
+    
     @override
     def history(self, last: int = 10) -> List[Tuple[int, str]]:
         # Figure out a way to retrieve history later.
