@@ -155,6 +155,22 @@ class GDBProcess(pwndbg.dbg_mod.Process):
 
         return GDBMemoryMap(reliable_perms, qemu, pages)
 
+    # Note that in GDB this method does not depend on the process at all!
+    #
+    # From the point-of-view of the GDB implementation, this could very well be
+    # implemented as part of Debugger. The issue with that, however, is that the
+    # LLDB implementation would have to do some fairly heavy legwork to keep up
+    # the appearance that values are independent from any given target.
+    #
+    # Opting instead to have this method be at this level, although slightly
+    # redundant in GDB, saves a ton of work in LLDB.
+    @override
+    def create_value(self, value: int, type: pwndbg.dbg_mod.Type | None = None) -> pwndbg.dbg_mod.Value:
+        v = GDBValue(gdb.Value(value))
+        if type:
+            v = v.cast(type)
+        return v
+
     @override
     def symbol_name_at_address(self, address: int) -> str | None:
         import pwndbg.gdblib.symbol
@@ -382,13 +398,6 @@ class GDB(pwndbg.dbg_mod.Debugger):
         config_mod.init_params()
 
         prompt.show_hint()
-
-    @override
-    def create_value(value: int, type: Type | None = None) -> Value:
-        v = GDBValue(gdb.Value(value))
-        if type:
-            v = v.Cast(type)
-        return v
 
     @override
     def add_command(
