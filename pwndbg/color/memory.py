@@ -28,7 +28,7 @@ def sym_name(address: int) -> str | None:
     """
     Retrieves the name of the symbol at the given address, if it exists
     """
-    return pwndbg.dbg.inferior().symbol_name_at_address(address)
+    return pwndbg.dbg.selected_inferior().symbol_name_at_address(address)
 
 
 def get_address_and_symbol(address: int) -> str:
@@ -78,7 +78,7 @@ def get(
 
     import pwndbg
 
-    vmmap = pwndbg.dbg.inferior().vmmap()
+    vmmap = pwndbg.dbg.selected_inferior().vmmap()
 
     page = None
     for entry in vmmap.ranges():

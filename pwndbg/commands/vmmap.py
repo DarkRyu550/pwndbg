@@ -201,7 +201,7 @@ def vmmap(
     lines_before = min(lookaround_lines_limit, lines_before)
 
     # All displayed pages, including lines after and lines before
-    vmmap = pwndbg.dbg.inferior().vmmap()
+    vmmap = pwndbg.dbg.selected_inferior().vmmap()
     total_pages = vmmap.ranges()
 
     # Filtered memory pages, indicated by a backtrace arrow in results
