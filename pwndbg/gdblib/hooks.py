@@ -39,7 +39,6 @@ def update_typeinfo() -> None:
         gdb.execute(f"set language {restore_lang}")
 
 
-
 @pwndbg.gdblib.events.start
 @pwndbg.gdblib.events.stop
 @pwndbg.gdblib.events.new_objfile

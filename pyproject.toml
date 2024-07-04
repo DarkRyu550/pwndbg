@@ -105,6 +105,7 @@ disable_error_code = ["attr-defined"]
 
 [[tool.mypy.overrides]]
 module = [
+    "pwndbg.aglib.typeinfo",
     "pwndbg.gdblib.nearpc",
     "pwndbg.gdblib.typeinfo",
 ]
