@@ -130,6 +130,14 @@ class Process:
         """
         raise NotImplementedError()
 
+    def create_value(self, value: int, type: Type | None = None) -> Value:
+        """
+        Create a new value in the context of this process, with the given value
+        and, optionally, type. If no type is provided, one will be chosen
+        automatically.
+        """
+        raise NotImplementedError()
+
     # We'll likely have to expand this into a Symbol class and change this to a
     # `symbol_at_address` function later on.
     def symbol_name_at_address(self, address: int) -> str | None:
@@ -397,18 +405,6 @@ class Debugger:
         need. This shouldn't be a problem, seeing as, unlike other methods in
         this class, this should only be called as part of the debugger-specific
         bringup code.
-        """
-        raise NotImplementedError()
-
-    # In LLDB, a value exists in the scope of a target, and needs to be created
-    # referencing the right target in order for memory-related operations on it
-    # to be meaningful. This means that to implement this function in debugger
-    # scope, things get _bad_ very quick under LLDB.
-    def create_value(value: int, type: Type | None = None) -> Value:
-        """
-        Create a new value in the context of this debugger, with the given value
-        and, optionally, type. If no type is provided, one will be chosen
-        automatically.
         """
         raise NotImplementedError()
 
