@@ -519,6 +519,7 @@ class LLDB(pwndbg.dbg_mod.Debugger):
         self.module = module
         self.debugger = debugger
 
+        # Load all of our commands.
         import pwndbg.commands
 
         pwndbg.commands.load_commands()
@@ -627,6 +628,13 @@ class LLDB(pwndbg.dbg_mod.Debugger):
             return LLDBFrame(f)
 
         return None
+
+    def _prompt_hook(self) -> None:
+        """
+        The REPL calls this function in order to signal that the prompt hooks
+        should be executed.
+        """
+        pass
 
     @override
     def get_cmd_window_size(self) -> Tuple[int, int]:
