@@ -448,6 +448,16 @@ class LLDB(pwndbg.dbg_mod.Debugger):
         self.module = module
         self.debugger = debugger
 
+        # Set up the command line proxy.
+        import pwndbg.dbg.lldb.repl
+        proxy = pwndbg.dbg_mod.lldb.repl.CommandLineProxy(sys.stdin, self)
+        file = lldb.SBFile.Create(proxy, borrow=True, force_io_methods=True)
+        error = self.debugger.SetInputFile(file)
+        if not error.success:
+            raise RuntimeError(error)
+        print(f"[+] installed command line proxy: {self.debugger.GetInputFile().GetFile()}")
+
+        # Load all of our commands.
         import pwndbg.commands
 
         pwndbg.commands.load_commands()
