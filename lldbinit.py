@@ -124,14 +124,6 @@ def skip_venv(src_root) -> bool:
     )
 
 
-class Test:
-    def __init__(self, debugger, _):
-        pass
-
-    def __call__(self, debugger, command, exe_context, result):
-        print(f"{debugger}, {command}, {exe_context}, {result}")
-
-
 def main(debugger: lldb.SBDebugger) -> None:
     profiler = cProfile.Profile()
 
@@ -158,10 +150,6 @@ def main(debugger: lldb.SBDebugger) -> None:
     pwndbg.dbg = pwndbg.dbg_mod.lldb.LLDB()
     pwndbg.dbg.setup(debugger, __name__)
 
-    import pwndbg.lldblib
-
-    pwndbg.lldblib.register_class_as_cmd(debugger, "test", Test)
-
     import pwndbg.profiling
 
     pwndbg.profiling.init(profiler, start_time)
@@ -169,14 +157,3 @@ def main(debugger: lldb.SBDebugger) -> None:
         pwndbg.profiling.profiler.stop("pwndbg-load.pstats")
         pwndbg.profiling.profiler.start()
 
-
-def __lldb_init_module(debugger, _):
-    """
-    Actually handles the setup bits for LLDB.
-
-    LLDB, unlike GDB, exposes the bits we're interested in through object
-    instances, and we are initially only passed the instance for the interactive
-    debugger through this function.
-    """
-
-    main(debugger)
