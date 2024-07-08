@@ -163,6 +163,13 @@ unicorn = "^2.0.1.post1"
 requests = "^2.32.0"
 pt = {git = "https://github.com/martinradev/gdb-pt-dump", rev = "50227bda0b6332e94027f811a15879588de6d5cb"}
 
+[tool.poetry.group.lldb]
+optional = true
+
+[tool.poetry.group.lldb.dependencies]
+# The LLDB REPL requires readline.
+gnureadline = "^8.2.10"
+
 [tool.poetry.group.dev]
 optional = true
 

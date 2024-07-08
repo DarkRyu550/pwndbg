@@ -12,11 +12,12 @@
     import nixpkgs { overlays = [ ]; },
   python3 ? pkgs.python3,
   inputs ? null,
+  isLLDB ? false,
   ...
 }:
 let
   pyEnv = import ./pyenv.nix {
-    inherit pkgs python3 inputs;
+    inherit pkgs python3 inputs isLLDB;
     lib = pkgs.lib;
     isDev = true;
   };
@@ -38,6 +39,8 @@ in
       go
 
       pyEnv
+    ] ++ lib.optionals isLLDB [
+      lldb
     ];
     shellHook = ''
       export PWNDBG_VENV_PATH="PWNDBG_PLEASE_SKIP_VENV"
