@@ -4,6 +4,7 @@
   gdb ? pkgs.gdb,
   inputs ? null,
   isDev ? false,
+  isLLDB ? false,
 }:
 let
   binPath = pkgs.lib.makeBinPath (
@@ -22,7 +23,7 @@ let
       python3
       inputs
       isDev
-      ;
+      isLLDB;
     lib = pkgs.lib;
   };
 
@@ -39,11 +40,14 @@ let
     name = "pwndbg";
     version = pwndbgVersion;
 
-    src = pkgs.lib.sourceByRegex inputs.pwndbg [
+    src = pkgs.lib.sourceByRegex inputs.pwndbg ([
       "pwndbg"
       "pwndbg/.*"
       "gdbinit.py"
-    ];
+    ] ++ pkgs.lib.optionals isLLDB [
+      "lldbinit.py"
+      "pwndbg-lldb.py"
+    ]);
 
     nativeBuildInputs = [ pkgs.makeWrapper ];
 

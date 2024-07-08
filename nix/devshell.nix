@@ -12,11 +12,13 @@
     import nixpkgs { overlays = [ ]; },
   python3 ? pkgs.python3,
   inputs ? null,
+  isLLDB ? false,
+  llvmPkgs ? null,
   ...
 }:
 let
   pyEnv = import ./pyenv.nix {
-    inherit pkgs python3 inputs;
+    inherit pkgs python3 inputs isLLDB;
     lib = pkgs.lib;
     isDev = true;
   };
@@ -25,7 +27,7 @@ in
   default = pkgs.mkShell {
     NIX_CONFIG = "extra-experimental-features = nix-command flakes repl-flake";
     # Anything not handled by the poetry env
-    nativeBuildInputs = with pkgs; [
+    nativeBuildInputs = (with pkgs; [
       # from setup-dev.sh
       nasm
       gcc
@@ -38,7 +40,9 @@ in
       go
 
       pyEnv
-    ];
+    ]) ++ pkgs.lib.optionals isLLDB (with llvmPkgs; [
+      lldb_16
+    ]);
     shellHook = ''
       export PWNDBG_VENV_PATH="PWNDBG_PLEASE_SKIP_VENV"
       export ZIGPATH="${pkgs.lib.getBin pkgs.zig_0_10}/bin/"
