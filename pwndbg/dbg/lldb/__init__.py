@@ -4,15 +4,19 @@ import os
 import sys
 from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Sequence
 from typing import Tuple
+from typing import TypeVar
 
 import lldb
 from typing_extensions import override
 
 import pwndbg
+
+T = TypeVar("T")
 
 
 class LLDBArch(pwndbg.dbg_mod.Arch):
@@ -504,9 +508,17 @@ class LLDBCommand(pwndbg.dbg_mod.CommandHandle):
 class LLDB(pwndbg.dbg_mod.Debugger):
     exec_states: List[lldb.SBExecutionState]
 
+    # We keep track of all installed event handlers here. The REPL will trigger
+    # them by means of the `_trigger_event()` method.
+    event_handlers: Dict[pwndbg.dbg_mod.EventType, List[Callable[..., T]]]
+
+    # The prompt hook fired right before the prompt is displayed.
+    prompt_hook: Callable[[], None]
+
     @override
     def setup(self, *args):
         self.exec_states = []
+        self.event_handlers = {}
 
         debugger = args[0]
         assert (
@@ -524,6 +536,7 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         pwndbg.commands.load_commands()
 
+        import pwndbg.dbg.lldb.hooks
         import pwndbg.dbg.lldb.pset
 
     @override
@@ -629,12 +642,53 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         return None
 
-    def _prompt_hook(self) -> None:
+    @override
+    def has_event_type(self, ty: pwndbg.dbg_mod.EventType) -> bool:
+        # We don't support memory read and write events.
+        return ty not in {
+            pwndbg.dbg_mod.EventType.MEMORY_CHANGED,
+            pwndbg.dbg_mod.EventType.REGISTER_CHANGED,
+        }
+
+    @override
+    def event_handler(
+        self, ty: pwndbg.dbg_mod.EventType
+    ) -> Callable[[Callable[..., T]], Callable[..., T]]:
+        def decorator(fn: Callable[..., T]) -> Callable[..., T]:
+            if ty not in self.event_handlers:
+                self.event_handlers[ty] = []
+
+            # [...] incompatible type "Callable[..., T]"; expected "Callable[..., T]"
+            self.event_handlers[ty].append(fn)  # type: ignore[arg-type]
+            return fn
+
+        return decorator
+
+    def _fire_prompt_hook(self) -> None:
         """
         The REPL calls this function in order to signal that the prompt hooks
         should be executed.
         """
-        pass
+        if self.prompt_hook:
+            self.prompt_hook()
+
+    def _trigger_event(self, ty: pwndbg.dbg_mod.EventType) -> None:
+        """
+        The REPL calls this function in order to signal that a given event type
+        has occurred.
+        """
+        if ty not in self.event_handlers:
+            # No one cares about this event type.
+            return
+
+        for handler in self.event_handlers[ty]:
+            try:
+                handler()
+            except Exception as e:
+                import pwndbg.exception
+
+                pwndbg.exception.handle()
+                raise e
 
     @override
     def get_cmd_window_size(self) -> Tuple[int, int]:

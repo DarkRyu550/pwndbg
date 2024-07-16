@@ -8,6 +8,48 @@ import lldb
 from pwndbg.dbg.lldb.repl.io import IODriver
 
 
+class EventHandler:
+    """
+    The event types that make sense for us to track in the process driver aren't
+    the same as the ones in the rest of Pwndbg, so we just expose the native
+    events in process driver, and let the rest of the REPL deal with any
+    complexities that might arise from the translation.
+
+    This is mostly intended to keep the complexity of generating the START and
+    NEW_THREAD events correctly out of the process driver.
+    """
+
+    def created(self):
+        """
+        This function is called when a process is created or attached to.
+        """
+        pass
+
+    def suspended(self):
+        """
+        This function is called when the execution of a process is suspended.
+        """
+        pass
+
+    def resumed(self):
+        """
+        This function is called when the execution of a process is resumed.
+        """
+        pass
+
+    def exited(self):
+        """
+        This function is called when a process terminates or is detached from.
+        """
+        pass
+
+    def modules_loaded(self):
+        """
+        This function is called when a new modules have been loaded.
+        """
+        pass
+
+
 class ProcessDriver:
     """
     Drives the execution of a process, responding to its events and handling its
@@ -18,12 +60,14 @@ class ProcessDriver:
     process: lldb.SBProcess
     listener: lldb.SBListener
     debug: bool
+    eh: EventHandler
 
-    def __init__(self, debug=False):
+    def __init__(self, event_handler: EventHandler, debug=False):
         self.io = None
         self.process = None
         self.listener = None
         self.debug = debug
+        self.eh = event_handler
 
     def has_process(self) -> bool:
         """
@@ -85,10 +129,6 @@ class ProcessDriver:
 
                 continue
 
-            assert lldb.SBProcess.EventIsProcessEvent(
-                event
-            ), "received something other than a process event in a process event listener"
-
             if self.debug:
                 descr = lldb.SBStream()
                 if event.GetDescription(descr):
@@ -96,41 +136,56 @@ class ProcessDriver:
                 else:
                     print(f"[!] ProcessDriver: No description for {event}")
 
-            if (
-                event.GetType() == lldb.SBProcess.eBroadcastBitSTDOUT
-                or event.GetType() == lldb.SBProcess.eBroadcastBitSTDERR
-            ):
-                # Notify the I/O driver that the process might have something
-                # new for it to consume.
-                self.io.on_output_event()
-            elif event.GetType() == lldb.SBProcess.eBroadcastBitStateChanged:
-                # The state of the process has changed.
-                new_state = lldb.SBProcess.GetStateFromEvent(event)
-                was_resumed = lldb.SBProcess.GetRestartedFromEvent(event)
+            if lldb.SBTarget.EventIsTargetEvent(event):
+                if event.GetType() == lldb.SBTarget.eBroadcastBitModulesLoaded:
+                    # Notify the event handler that new modules got loaded in.
+                    self.eh.modules_loaded()
 
-                if new_state == lldb.eStateStopped and not was_resumed:
-                    # The process has stopped, so we're done processing events
-                    # for the time being.
-                    break
+            elif lldb.SBProcess.EventIsProcessEvent(event):
+                if (
+                    event.GetType() == lldb.SBProcess.eBroadcastBitSTDOUT
+                    or event.GetType() == lldb.SBProcess.eBroadcastBitSTDERR
+                ):
+                    # Notify the I/O driver that the process might have something
+                    # new for it to consume.
+                    self.io.on_output_event()
+                elif event.GetType() == lldb.SBProcess.eBroadcastBitStateChanged:
+                    # The state of the process has changed.
+                    new_state = lldb.SBProcess.GetStateFromEvent(event)
+                    was_resumed = lldb.SBProcess.GetRestartedFromEvent(event)
 
-                if new_state == lldb.eStateRunning or new_state == lldb.eStateStepping:
-                    running = True
+                    if new_state == lldb.eStateStopped and not was_resumed:
+                        # The process has stopped, so we're done processing events
+                        # for the time being. Trigger the stopped event and return.
+                        self.eh.suspended()
+                        break
 
-                    # Start the I/O driver here if its start got deferred
-                    # because of `only_if_started` being set.
-                    if only_if_started and with_io:
-                        self.io.start(process=self.process)
-                        io_started = True
+                    if new_state == lldb.eStateRunning or new_state == lldb.eStateStepping:
+                        running = True
+                        # Trigger the continued event.
+                        self.eh.resumed()
 
-                if new_state == lldb.eStateExited:
-                    # Nothing else for us to do here. Clear our internal
-                    # references to the process and leave.
-                    if self.debug:
-                        print("[-] ProcessDriver: Process exited normally")
-                    self.process = None
-                    self.listener = None
+                        # Start the I/O driver here if its start got deferred
+                        # because of `only_if_started` being set.
+                        if only_if_started and with_io:
+                            self.io.start(process=self.process)
+                            io_started = True
 
-                    break
+                    if (
+                        new_state == lldb.eStateExited
+                        or new_state == lldb.eStateCrashed
+                        or new_state == lldb.eStateDetached
+                    ):
+                        # Nothing else for us to do here. Clear our internal
+                        # references to the process, fire the exit event, and leave.
+                        if self.debug:
+                            print(f"[-] ProcessDriver: Process exited with state {new_state}")
+                        self.process = None
+                        self.listener = None
+
+                        self.eh.exited()
+
+                        break
 
         if io_started:
             self.io.stop()
@@ -172,6 +227,20 @@ class ProcessDriver:
         stdin, stdout, stderr = io.stdio()
         error = lldb.SBError()
         self.listener = lldb.SBListener("pwndbg.dbg.lldb.repl.proc.ProcessDriver")
+        assert self.listener.IsValid()
+
+        # We are interested in handling certain target events synchronously, so
+        # set them up here, before LLDB has had any chance to do anything to the
+        # process.
+        self.listener.StartListeningForEventClass(
+            target.GetDebugger(),
+            lldb.SBTarget.GetBroadcasterClassName(),
+            lldb.SBTarget.eBroadcastBitModulesLoaded,
+        )
+
+        # Do the launch, proper. We always stop the target, and let the upper
+        # layers deal with the user wanting the program to not stop at entry by
+        # calling `cont()`.
         self.process = target.Launch(
             self.listener,
             args,
@@ -194,5 +263,7 @@ class ProcessDriver:
         assert self.listener.IsValid()
         assert self.process.IsValid()
         self.io = io
+
+        self.eh.created()
 
         return error

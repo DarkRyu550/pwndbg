@@ -46,13 +46,16 @@ from typing import List
 from typing import Tuple
 
 import lldb
+from typing_extensions import override
 
 import pwndbg
 import pwndbg.dbg.lldb
 from pwndbg.color import message
+from pwndbg.dbg import EventType
 from pwndbg.dbg.lldb import LLDB
 from pwndbg.dbg.lldb.repl.io import IODriver
 from pwndbg.dbg.lldb.repl.io import get_io_driver
+from pwndbg.dbg.lldb.repl.proc import EventHandler
 from pwndbg.dbg.lldb.repl.proc import ProcessDriver
 from pwndbg.dbg.lldb.repl.readline import PROMPT
 from pwndbg.dbg.lldb.repl.readline import disable_readline
@@ -88,6 +91,48 @@ def lex_args(args: str) -> List[str]:
     return result
 
 
+class EventRelay(EventHandler):
+    """
+    The event system that is sensible for the REPL process driver to use isn't
+    an exact match with the one used by the rest of Pwndbg. They're close, but
+    there's a bit of work we have to do to properly convey certain events.
+    """
+
+    def __init__(self, dbg: LLDB):
+        self.dbg = dbg
+        self.ignore_resumed = 0
+
+    def _set_ignore_resumed(self, count: int):
+        """
+        Don't relay next given number of resumed events.
+        """
+        self.ignore_resumed += count
+
+    @override
+    def created(self):
+        self.dbg._trigger_event(EventType.START)
+
+    @override
+    def suspended(self):
+        self.dbg._trigger_event(EventType.STOP)
+
+    @override
+    def resumed(self):
+        if self.ignore_resumed > 0:
+            self.ignore_resumed -= 1
+            return
+
+        self.dbg._trigger_event(EventType.CONTINUE)
+
+    @override
+    def exited(self):
+        self.dbg._trigger_event(EventType.EXIT)
+
+    @override
+    def modules_loaded(self):
+        self.dbg._trigger_event(EventType.NEW_MODULE)
+
+
 def run(startup: List[str] | None = None) -> None:
     """
     Runs the Pwndbg REPL under LLDB. Optionally enters the commands given in
@@ -107,7 +152,8 @@ def run(startup: List[str] | None = None) -> None:
     dbg.debugger.SetAsync(True)
 
     # This is the driver we're going to be using to handle the process.
-    driver = ProcessDriver(debug=True)
+    relay = EventRelay(dbg)
+    driver = ProcessDriver(debug=True, event_handler=relay)
 
     # Set ourselves up to respond to SIGINT by interrupting the process if it is
     # running, and doing nothing otherwise.
@@ -120,7 +166,7 @@ def run(startup: List[str] | None = None) -> None:
 
     while True:
         # Execute the prompt hook and ask for input.
-        dbg._prompt_hook()
+        dbg._fire_prompt_hook()
         try:
             if startup_i < len(startup):
                 print(PROMPT, end="")
@@ -212,7 +258,7 @@ def run(startup: List[str] | None = None) -> None:
         if bits[0].startswith("pr") and "process".startswith(bits[0]):
             if len(bits) > 1 and bits[1].startswith("la") and "launch".startswith(bits[1]):
                 # This is `process launch`.
-                process_launch(driver, bits[2:], dbg)
+                process_launch(driver, relay, bits[2:], dbg)
                 continue
             if len(bits) > 1 and bits[1].startswith("a") and "attach".startswith(bits[1]):
                 # This is `process attach`.
@@ -237,7 +283,7 @@ def run(startup: List[str] | None = None) -> None:
 
         if bits[0].startswith("r") and "run".startswith(bits[0]):
             # `run` is an alias for `process launch`
-            process_launch(driver, bits[1:], dbg)
+            process_launch(driver, relay, bits[1:], dbg)
             continue
 
         if bits[0] == "c" or (bits[0].startswith("con") and "continue".startswith(bits[0])):
@@ -394,7 +440,7 @@ process_launch_unsupported = [
 ]
 
 
-def process_launch(driver: ProcessDriver, args: List[str], dbg: LLDB) -> None:
+def process_launch(driver: ProcessDriver, relay: EventRelay, args: List[str], dbg: LLDB) -> None:
     """
     Launches a process with the given arguments, and returns the process itself
     and its event listener if the launch was successful. Returns `None` otherwise.
@@ -407,9 +453,7 @@ def process_launch(driver: ProcessDriver, args: List[str], dbg: LLDB) -> None:
     assert targets < 2
     if targets == 0:
         print(
-            message.error(
-                "error: invalid target, create a target using the 'target create' command"
-            )
+            message.error("error: invalid target, create a get using the 'garget create' command")
         )
         return
 
@@ -425,9 +469,27 @@ def process_launch(driver: ProcessDriver, args: List[str], dbg: LLDB) -> None:
         return
 
     # Continue execution if the user hasn't requested for a stop at the entry
-    # point of the process.
+    # point of the process. And handle necessary events.
     if not args.stop_at_entry:
+        # The relay has already sended a START event at this point. Continuing
+        # normally will send a CONTINUE event, which is incorrect, as START
+        # already implies the program is about to start running. So we avoid
+        # sending the next CONTINUE event.
+        relay._set_ignore_resumed(1)
+
         driver.cont()
+    else:
+        # Tell the debugger that the process was suspended.
+        #
+        # The event system in the process driver can't natively represent the
+        # START event type exactly. It knows only when a process has been
+        # created and when a process changed it state to running from suspended,
+        # and vice versa.
+        #
+        # This means that we have to relay an extra event here to convey that
+        # the process stopped at entry, even though what's going on, in reality,
+        # is that we're simply not resuming the process.
+        dbg._trigger_event(EventType.STOP)
 
 
 continue_ap = argparse.ArgumentParser(add_help=False)
