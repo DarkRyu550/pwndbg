@@ -20,7 +20,6 @@ import pwndbg.gdblib.events
 from pwndbg.gdblib import gdb_version
 from pwndbg.gdblib import load_gdblib
 
-
 T = TypeVar("T")
 
 
@@ -92,7 +91,7 @@ def selection(target: T, get_current: Callable[[], T], select: Callable[[T], Non
 class GDBRegisters(pwndbg.dbg_mod.Registers):
     def __init__(self, frame: GDBFrame):
         self.frame = frame
-    
+
     @override
     def by_name(self, name: str) -> pwndbg.dbg_mod.Value | None:
         try:

@@ -12,7 +12,6 @@ from typing import Literal
 from typing import Sequence
 from typing import Tuple
 from typing import TypeVar
-from collections.abc import Sequence
 
 import pwndbg.lib.memory
 
