@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import pwndbg
 import gdb
 
+import pwndbg
 import pwndbg.aglib.typeinfo
 import pwndbg.gdblib.abi
 import pwndbg.gdblib.events
