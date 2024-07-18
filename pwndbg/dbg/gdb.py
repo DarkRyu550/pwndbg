@@ -18,6 +18,7 @@ from typing_extensions import override
 import pwndbg
 import pwndbg.gdblib
 import pwndbg.gdblib.events
+import pwndbg.gdblib.remote
 from pwndbg.gdblib import gdb_version
 from pwndbg.gdblib import load_gdblib
 from pwndbg.lib.memory import PAGE_MASK
@@ -236,6 +237,18 @@ class GDBProcess(pwndbg.dbg_mod.Process):
 
             raise pwndbg.dbg_mod.Error(e)
         return len(data)
+
+    @override
+    def is_remote(self) -> bool:
+        return pwndbg.gdblib.remote.is_remote()
+
+    @override
+    def send_remote(self, packet: str) -> str:
+        return gdb.execute(f"maintenance packet {packet}", to_string=True)
+
+    @override
+    def send_monitor(self, cmd: str) -> str:
+        return gdb.execute(f"monitor {cmd}", to_string=True)
 
     # Note that in GDB this method does not depend on the process at all!
     #

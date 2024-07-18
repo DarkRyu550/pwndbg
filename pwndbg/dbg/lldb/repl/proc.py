@@ -223,6 +223,8 @@ class ProcessDriver:
         """
         Launches the process and handles startup events. Always stops on first
         opportunity, and returns immediately after the process has stopped.
+
+        Fires the created() event.
         """
         stdin, stdout, stderr = io.stdio()
         error = lldb.SBError()
@@ -262,8 +264,52 @@ class ProcessDriver:
 
         assert self.listener.IsValid()
         assert self.process.IsValid()
-        self.io = io
 
+        self.io = io
         self.eh.created()
+
+        return error
+
+    def connect(self, target: lldb.SBTarget, io: IODriver, url: str, plugin: str) -> lldb.SBError:
+        """
+        Connects to a remote proces with the given URL using the plugin with the
+        given name, and attaches to the process until LLDB issues a start event
+        to us.
+
+        Potentially fires all types of events, as it is not known when LLDB will
+        return control of the process to us.
+        """
+
+        stdin, stdout, stderr = io.stdio()
+        error = lldb.SBError()
+        self.listener = lldb.SBListener("pwndbg.dbg.lldb.repl.proc.ProcessDriver")
+        assert self.listener.IsValid()
+
+        # See `launch()`.
+        self.listener.StartListeningForEventClass(
+            target.GetDebugger(),
+            lldb.SBTarget.GetBroadcasterClassName(),
+            lldb.SBTarget.eBroadcastBitModulesLoaded,
+        )
+
+        # Connect to the given remote URL using the given remote process plugin.
+        self.process = target.ConnectRemote(self.listener, url, plugin, error)
+
+        if not error.success:
+            # Undo any initialization ConnectRemote might've done.
+            self.process = None
+            self.listener = None
+            return error
+
+        assert self.listener.IsValid()
+        assert self.process.IsValid()
+
+        self.io = io
+        self.eh.created()
+
+        # Unlike in `launch()`, it's not guaranteed that the process will not be
+        # running at this point, so we have to attach the I/O and wait until we
+        # get a stop event.
+        self._run_until_next_stop()
 
         return error

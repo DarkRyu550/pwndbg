@@ -149,6 +149,27 @@ class Process:
         """
         raise NotImplementedError()
 
+    def is_remote(self) -> bool:
+        """
+        Returns whether this process is a remote process connected to using the
+        GDB remote debugging protocol.
+        """
+        raise NotImplementedError()
+
+    def send_remote(self, packet: str) -> str:
+        """
+        Sends the given packet to the GDB remote debugging protocol server.
+        Should only be called if `is_remote()` is true.
+        """
+        raise NotImplementedError()
+
+    def send_monitor(self, cmd: str) -> str:
+        """
+        Sends the given monitor command to the GDB remote debugging protocol
+        server. Should only be called if `is_remote()` is true.
+        """
+        raise NotImplementedError()
+
     def create_value(self, value: int, type: Type | None = None) -> Value:
         """
         Create a new value in the context of this process, with the given value

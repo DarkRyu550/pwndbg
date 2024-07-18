@@ -266,6 +266,10 @@ def run(startup: List[str] | None = None) -> None:
                 # TODO: Implement process attach.
                 print(message.error("Pwndbg does not support 'process attach' yet."))
                 continue
+            if len(bits) > 1 and bits[1].startswith("conn") and "connect".startswith(bits[1]):
+                # This is `process connect`.
+                process_connect(driver, relay, bits[2:], dbg)
+                continue
             # We don't care about other process commands..
 
         if bits[0].startswith("ta") and "target".startswith(bits[0]):
@@ -292,6 +296,14 @@ def run(startup: List[str] | None = None) -> None:
             # need for it to. We know what the user wants, so we can fast-track
             # their request.
             continue_process(driver, bits[1:], dbg)
+            continue
+
+        if bits[0].startswith("gd") and "gdb-remote".startswith(bits[0]):
+            # `gdb-remote` is almost the same as `process launch -p gdb-remote`,
+            # but it does some additional changes to the URL, by prepending
+            # "connect://" to it. So, from our pespective, it is a separate
+            # command, even though it will also end up calling process_launch().
+            gdb_remote(driver, relay, bits[1:], dbg)
             continue
 
         # The command hasn't matched any of our filtered commands, just let LLDB
@@ -442,8 +454,7 @@ process_launch_unsupported = [
 
 def process_launch(driver: ProcessDriver, relay: EventRelay, args: List[str], dbg: LLDB) -> None:
     """
-    Launches a process with the given arguments, and returns the process itself
-    and its event listener if the launch was successful. Returns `None` otherwise.
+    Launches a process with the given arguments.
     """
     args = parse(args, process_launch_ap, process_launch_unsupported)
     if not args:
@@ -460,6 +471,9 @@ def process_launch(driver: ProcessDriver, relay: EventRelay, args: List[str], db
     if driver.has_process():
         print(message.error("error: a process is already being debugged"))
         return
+
+    # Make sure the LLDB driver knows that this is a local process.
+    dbg._current_process_is_gdb_remote = False
 
     io_driver = get_io_driver()
     result = driver.launch(dbg.debugger.GetTargetAtIndex(0), io_driver, [], [], os.getcwd())
@@ -490,6 +504,121 @@ def process_launch(driver: ProcessDriver, relay: EventRelay, args: List[str], db
         # the process stopped at entry, even though what's going on, in reality,
         # is that we're simply not resuming the process.
         dbg._trigger_event(EventType.STOP)
+
+
+process_connect_ap = argparse.ArgumentParser(add_help=False)
+process_connect_ap.add_argument("-p", "--plugin")
+process_connect_ap.add_argument("remoteurl")
+
+
+def process_connect(driver: ProcessDriver, relay: EventRelay, args: List[str], dbg: LLDB) -> None:
+    """
+    Connects to the given remote process.
+    """
+    args = parse(args, process_connect_ap, [])
+    if not args:
+        return
+
+    if "plugin" not in args or args.plugin != "gdb-remote":
+        print(
+            message.error(
+                "Pwndbg only supports the gdb-remote plugin for 'process connect'. Please specify it with the '-p gdb-remote' argument."
+            )
+        )
+        return
+
+    if driver.has_process():
+        print(message.error("error: a process is already being debugged"))
+        return
+
+    target = dbg.debugger.GetSelectedTarget()
+    error = lldb.SBError()
+    created_target = False
+    if target is None or not target.IsValid():
+        # Create a new, empty target, the same way the LLDB command line would.
+        #
+        # The LLDB command line sets the default triple based on the
+        # architecture value set in the `target.default-arch` setting. We do the
+        # same.
+        result = lldb.SBCommandReturnObject()
+        dbg.debugger.GetCommandInterpreter().HandleCommand(
+            "settings show target.default-arch", result, False
+        )
+
+        arch = ""
+        if result.GetErrorSize() == 0:
+            # The result of this command has the following form:
+            #
+            # (lldb) settings show target.default-arch
+            # target.default-arch (arch) = <value>
+            #
+            # Where <value> may be empty, for no value.
+            arch = result.GetOutput().split("=")[1].strip()
+        triple = f"{arch}-unknown-unknown" if len(arch) > 0 else None
+
+        target = dbg.debugger.CreateTarget(None, triple, None, True, error)
+        if not error.success or not target.IsValid():
+            print(
+                message.error(
+                    "error: could not automatically create target for 'process connect': {error.description}"
+                )
+            )
+            return
+
+        dbg.debugger.SetSelectedTarget(target)
+        created_target = True
+
+    # Make sure the LLDB driver knows that this is a remote process.
+    dbg._current_process_is_gdb_remote = True
+
+    io_driver = get_io_driver()
+    error = driver.connect(target, io_driver, args.remoteurl, "gdb-remote")
+
+    if not error.success:
+        print(message.error("error: could not connect to remote process: {error.description}"))
+        if created_target:
+            # Delete the target we previously created.
+            assert dbg.debugger.DeleteTarget(
+                target
+            ), "Could not delete the target we've just created. What?"
+        return
+
+
+gdb_remote_ap = argparse.ArgumentParser(add_help=False)
+gdb_remote_ap.add_argument("remoteurl")
+
+
+def gdb_remote(driver: ProcessDriver, relay: EventRelay, args: List[str], dbg: LLDB) -> None:
+    """
+    Like `process_connect`, but more lenient with the remote URL format.
+    """
+
+    args = parse(args, gdb_remote_ap, [])
+    if not args:
+        return
+
+    parts = args.remoteurl.split(":")
+    if len(parts) == 1:
+        url = None
+        port = parts[0]
+    elif len(parts) == 2:
+        url = parts[0]
+        port = parts[1]
+    else:
+        print(message.error(f"error: unknown URL format '{args.remoteurl}'"))
+        return
+
+    try:
+        port = int(port, 10)
+    except ValueError:
+        print(message.error(f"error: could not interpret '{port}' as port number"))
+        return
+
+    if url is None:
+        print(message.warn("hostname not given, using 'localhost'"))
+        url = "localhost"
+
+    process_connect(driver, relay, ["-p", "gdb-remote", f"connect://{url}:{port}"], dbg)
 
 
 continue_ap = argparse.ArgumentParser(add_help=False)

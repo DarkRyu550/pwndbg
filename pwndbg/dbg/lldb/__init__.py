@@ -261,9 +261,18 @@ class LLDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
 
 
 class LLDBProcess(pwndbg.dbg_mod.Process):
-    def __init__(self, process: lldb.SBProcess, target: lldb.SBTarget):
+    # Whether this process is based on `ProcessGDBRemote` (AKA: the `gdb-remote`
+    # LLDB process plugin). This is used to selectively enable the functions
+    # that interface with the remote GDB protocol.
+    _is_gdb_remote: bool
+
+    def __init__(
+        self, dbg: LLDB, process: lldb.SBProcess, target: lldb.SBTarget, is_gdb_remote: bool
+    ):
+        self.dbg = dbg
         self.process = process
         self.target = target
+        self._is_gdb_remote = is_gdb_remote
 
     @override
     def evaluate_expression(self, expression: str) -> pwndbg.dbg_mod.Value:
@@ -412,6 +421,55 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         return count
 
     @override
+    def is_remote(self) -> bool:
+        # The REPL knows when a remote target has been connected to, or when a
+        # local process has been launched. So we let it take the reigns and just
+        # relay that information to the rest of Pwndbg.
+        return self._is_gdb_remote
+
+    @override
+    def send_remote(self, packet: str) -> str:
+        if len(packet) == 0:
+            raise RuntimeError("Empty packets are not allowed")
+        if not self._is_gdb_remote:
+            raise RuntimeError("Called send_remote() on a local process")
+
+        # As of LLDB 18, there isn't a way for us to do this directly, so we
+        # have to use the command. The implementation of the command calls into
+        # private APIs.
+        result = lldb.SBCommandReturnObject()
+        self.dbg.debugger.GetCommandInterpreter().HandleCommand(
+            f"process plugin packet send {packet}",
+            result,
+            False,
+        )
+        assert (
+            result.GetErrorSize() == 0
+        ), "Remote packet errors shouldn't be reported as LLDB command errors. We probably got something wrong"
+
+        return result.GetOutput()
+
+    @override
+    def send_monitor(self, cmd: str) -> str:
+        if len(cmd) == 0:
+            raise RuntimeError("Empty monitor commands are not allowed")
+        if not self._is_gdb_remote:
+            raise RuntimeError("Called send_monitor() on a local process")
+
+        # Same as `send_remote()`.
+        result = lldb.SBCommandReturnObject()
+        self.dbg.debugger.GetCommandInterpreter().HandleCommand(
+            f"process plugin packet monitor {cmd}",
+            result,
+            False,
+        )
+        assert (
+            result.GetErrorSize() == 0
+        ), "Remote monitor errors shouldn't be reported as LLDB command errors. We probably got something wrong"
+
+        return result.GetOutput()
+
+    @override
     def create_value(
         self, value: int, type: pwndbg.dbg_mod.Type | None = None
     ) -> pwndbg.dbg_mod.Value:
@@ -515,10 +573,15 @@ class LLDB(pwndbg.dbg_mod.Debugger):
     # The prompt hook fired right before the prompt is displayed.
     prompt_hook: Callable[[], None]
 
+    # Whether the currently active process has direct accesss to the GDB remote
+    # protocol. The REPL controls this field.
+    _current_process_is_gdb_remote: bool
+
     @override
     def setup(self, *args):
         self.exec_states = []
         self.event_handlers = {}
+        self._current_process_is_gdb_remote = False
 
         debugger = args[0]
         assert (
@@ -612,7 +675,7 @@ class LLDB(pwndbg.dbg_mod.Debugger):
             # No process we can use.
             return None
 
-        return LLDBProcess(process, target)
+        return LLDBProcess(self, process, target, self._current_process_is_gdb_remote)
 
     @override
     def selected_inferior(self) -> pwndbg.dbg_mod.Process | None:
@@ -627,7 +690,7 @@ class LLDB(pwndbg.dbg_mod.Debugger):
         t = self.exec_states[-1].target
 
         if p.IsValid() and t.IsValid():
-            return LLDBProcess(p, t)
+            return LLDBProcess(self, p, t, self._current_process_is_gdb_remote)
 
         return None
 
