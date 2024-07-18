@@ -85,6 +85,12 @@ class Thread:
         """
         raise NotImplementedError()
 
+    def ptid(self) -> int | None:
+        """
+        The PTID of this thread, if available.
+        """
+        raise NotImplementedError()
+
 
 class MemoryMap:
     """

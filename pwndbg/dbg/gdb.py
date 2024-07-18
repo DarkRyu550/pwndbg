@@ -139,6 +139,11 @@ class GDBThread(pwndbg.dbg_mod.Thread):
             value = gdb.newest_frame()
         return GDBFrame(value)
 
+    @override
+    def ptid(self) -> int | None:
+        _, lwpid, _ = gdb.selected_thread().ptid
+        return lwpid
+
 
 class GDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
     def __init__(self, reliable_perms: bool, qemu: bool, pages: Sequence[pwndbg.lib.memory.Page]):

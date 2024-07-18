@@ -85,6 +85,10 @@ class LLDBThread(pwndbg.dbg_mod.Thread):
     def __init__(self, inner: lldb.SBThread):
         self.inner = inner
 
+    @override
+    def ptid(self) -> int | None:
+        return self.inner.id
+
 
 def map_type_code(type: lldb.SBType) -> pwndbg.dbg_mod.TypeCode:
     """
