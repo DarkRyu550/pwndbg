@@ -5,12 +5,30 @@ import sys
 from typing import Any
 from typing import Callable
 from typing import List
+from typing import Literal
 from typing import Tuple
 
 import lldb
 from typing_extensions import override
 
 import pwndbg
+
+
+class LLDBArch(pwndbg.dbg_mod.Arch):
+    def __init__(self, name: str, ptrsize: int, endian: Literal["little", "big"]):
+        self._endian = endian
+        self._name = name
+        self._ptrsize = ptrsize
+
+    @override
+    def endian(self) -> Literal["little", "big"]:
+        return self._endian
+
+    def arch(self) -> str:
+        return self._name
+
+    def ptrsize(self) -> int:
+        return self._ptrsize
 
 
 class LLDBFrame(pwndbg.dbg_mod.Frame):
@@ -263,13 +281,19 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
             # whether it is mapped or not.
             offset = 0 if not region.IsMapped() else 1
 
+            objfile = region.GetName()
+            if objfile is None:
+                # LLDB will sometimes give us overlapping ranges with no name.
+                # For now, we ignore them, since GDB does not show them.
+                continue
+
             pages.append(
                 pwndbg.lib.memory.Page(
                     start=region.GetRegionBase(),
                     size=region.GetRegionEnd() - region.GetRegionBase(),
                     flags=perms,
                     offset=offset,
-                    objfile=region.GetName(),
+                    objfile=objfile,
                 )
             )
 
@@ -287,6 +311,46 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
             return None
 
         return ctx.symbol.name
+
+    @override
+    def arch(self) -> pwndbg.dbg_mod.Arch:
+        endian0 = self.process.GetByteOrder()
+        endian1 = self.target.GetByteOrder()
+
+        if endian0 == lldb.eByteOrderInvalid:
+            endian0 = endian1
+
+        if endian0 != endian1:
+            raise RuntimeError(
+                "SBTarget::GetByteOrder() != SBProcess::GetByteOrder(). We don't know how to handle that"
+            )
+        if endian0 != lldb.eByteOrderLittle and endian0 != lldb.eByteOrderBig:
+            raise RuntimeError("We only support little and big endian systems")
+        if endian0 == lldb.eByteOrderInvalid:
+            raise RuntimeError("Byte order is invalid")
+
+        endian: Literal["little", "big"] = "little" if endian0 == lldb.eByteOrderLittle else "big"
+
+        ptrsize0 = self.process.GetAddressByteSize()
+        ptrsize1 = self.process.GetAddressByteSize()
+        if ptrsize0 != ptrsize1:
+            raise RuntimeError(
+                "SBTarget::GetAddressByteSize() != SBProcess::GetAddressByteSize(). We don't know how to handle that"
+            )
+
+        names = self.target.GetTriple().split("-")
+        if len(names) == 0 or len(names[0]) == 0:
+            # This is a scary situation to be in. LLDB lets users attatch to
+            # processes even when it has no idea what the target is. In those
+            # cases, the target triple name will be missing, and pretty much
+            # every other piece of information coming from LLDB will be
+            # unreliable.
+            #
+            # We should have to handle ourselves gracefully here, but there's
+            # basically nothing we can do to help with this, so we error out.
+            raise pwndbg.dbg_mod.Error("Unknown target architecture")
+
+        return LLDBArch(names[0], ptrsize0, endian)
 
 
 class LLDBCommand(pwndbg.dbg_mod.CommandHandle):
