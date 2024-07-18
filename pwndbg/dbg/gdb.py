@@ -687,6 +687,12 @@ class GDB(pwndbg.dbg_mod.Debugger):
             return pwndbg.gdblib.events.reg_changed
 
     @override
+    def set_sysroot(self, sysroot: str) -> bool:
+        gdb.execute(f"set sysroot {sysroot}", from_tty=False)
+        # Assume it worked..
+        return True
+
+    @override
     def addrsz(self, address: Any) -> str:
         address = int(address) & pwndbg.gdblib.arch.ptrmask
         return f"%#{2 * pwndbg.gdblib.arch.ptrsize}x" % address

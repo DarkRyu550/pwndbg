@@ -754,6 +754,10 @@ class LLDB(pwndbg.dbg_mod.Debugger):
                 raise e
 
     @override
+    def set_sysroot(self, sysroot: str) -> bool:
+        return self.debugger.SetCurrentPlatformSDKRoot(sysroot)
+
+    @override
     def get_cmd_window_size(self) -> Tuple[int, int]:
         import pwndbg.ui
 

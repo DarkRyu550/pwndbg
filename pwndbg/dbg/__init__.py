@@ -514,6 +514,12 @@ class Debugger:
         """
         raise NotImplementedError()
 
+    def set_sysroot(self, sysroot: str) -> bool:
+        """
+        Sets the system root for this debugger.
+        """
+        raise NotImplementedError()
+
     # WARNING
     #
     # These are hacky parts of the API that were strictly necessary to bring up
