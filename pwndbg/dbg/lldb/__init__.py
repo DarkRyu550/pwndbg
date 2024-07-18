@@ -41,7 +41,26 @@ class LLDBArch(pwndbg.dbg_mod.Arch):
         return self._ptrsize
 
 
+class LLDBRegisters(pwndbg.dbg_mod.Registers):
+    groups: lldb.SBValueList
+
+    def __init__(self, groups: lldb.SBValueList):
+        self.groups = groups
+
+    @override
+    def by_name(self, name: str) -> pwndbg.dbg_mod.Value | None:
+        for i in range(self.groups.GetSize()):
+            group = self.groups.GetValueAtIndex(i)
+            member = group.GetChildMemberWithName(name)
+            if member is not None and member.IsValid():
+                return LLDBValue(member)
+
+        return None
+
+
 class LLDBFrame(pwndbg.dbg_mod.Frame):
+    inner: lldb.SBFrame
+
     def __init__(self, inner: lldb.SBFrame):
         self.inner = inner
 
@@ -54,6 +73,17 @@ class LLDBFrame(pwndbg.dbg_mod.Frame):
             raise pwndbg.dbg_mod.Error(value.error.description)
 
         return LLDBValue(value)
+
+    @override
+    def regs(self) -> pwndbg.dbg_mod.Registers:
+        return LLDBRegisters(self.inner.GetRegisters())
+
+
+class LLDBThread(pwndbg.dbg_mod.Thread):
+    inner: lldb.SBThread
+
+    def __init__(self, inner: lldb.SBThread):
+        self.inner = inner
 
 
 def map_type_code(type: lldb.SBType) -> pwndbg.dbg_mod.TypeCode:
@@ -655,7 +685,7 @@ class LLDB(pwndbg.dbg_mod.Debugger):
     def lex_args(self, command_line: str) -> List[str]:
         return command_line.split()
 
-    def first_inferior(self) -> LLDBProcess | None:
+    def _any_inferior(self) -> LLDBProcess | None:
         """
         Pick the first inferior in the debugger, if any is present.
         """
@@ -684,7 +714,7 @@ class LLDB(pwndbg.dbg_mod.Debugger):
             # as it being selected, as multiple inferiors are not supported, so
             # we lie a little here, and treat the only inferior as always
             # selected.
-            return self.first_inferior()
+            return self._any_inferior()
 
         p = self.exec_states[-1].process
         t = self.exec_states[-1].target
@@ -694,10 +724,58 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         return None
 
+    def _any_thread(self) -> LLDBThread | None:
+        """
+        Pick the first thread we can get our hands on, preferring the selected
+        thread, if any is selected.
+        """
+        inferior: LLDBProcess = self.selected_inferior()
+        if inferior is None:
+            return None
+
+        selected = inferior.process.GetSelectedThread()
+        if selected is not None and selected.IsValid():
+            return LLDBThread(selected)
+
+        if inferior.process.GetNumThreads() <= 0:
+            return None
+
+        return LLDBThread(inferior.process.GetThreadAtIndex(0))
+
+    @override
+    def selected_thread(self) -> pwndbg.dbg_mod.Thread | None:
+        if len(self.exec_states) == 0:
+            return self._any_thread()
+
+        t = self.exec_states[-1].thread
+        if t.IsValid():
+            return LLDBThread(t)
+
+        return None
+
+    def _any_bottommost_frame(self) -> LLDBFrame | None:
+        """
+        Pick the first frame we can get our hands on, preferring the selected
+        frame, if any is selected, and always picking the lowest frame on the
+        stack otherwise.
+        """
+        thread: LLDBThread = self.selected_thread()
+        if thread is None:
+            return None
+
+        selected = thread.inner.GetSelectedFrame()
+        if selected is not None and selected.IsValid():
+            return LLDBFrame(selected)
+
+        if thread.inner.GetNumFrames() <= 0:
+            return None
+
+        return LLDBFrame(thread.inner.GetFrameAtIndex(0))
+
     @override
     def selected_frame(self) -> pwndbg.dbg_mod.Frame | None:
         if len(self.exec_states) == 0:
-            return None
+            return self._any_bottommost_frame()
 
         f = self.exec_states[-1].frame
         if f.IsValid():
