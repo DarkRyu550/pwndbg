@@ -15,6 +15,7 @@ import lldb
 from typing_extensions import override
 
 import pwndbg
+from pwndbg.aglib import load_aglib
 
 T = TypeVar("T")
 
@@ -464,7 +465,7 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
     @override
     def send_remote(self, packet: str) -> str:
         if len(packet) == 0:
-            raise RuntimeError("Empty packets are not allowed")
+            raise pwndbg.dbg_mod.Error("Empty packets are not allowed")
         if not self._is_gdb_remote:
             raise RuntimeError("Called send_remote() on a local process")
 
@@ -486,7 +487,7 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
     @override
     def send_monitor(self, cmd: str) -> str:
         if len(cmd) == 0:
-            raise RuntimeError("Empty monitor commands are not allowed")
+            raise pwndbg.dbg_mod.Error("Empty monitor commands are not allowed")
         if not self._is_gdb_remote:
             raise RuntimeError("Called send_monitor() on a local process")
 
@@ -588,7 +589,11 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
             # basically nothing we can do to help with this, so we error out.
             raise pwndbg.dbg_mod.Error("Unknown target architecture")
 
-        return LLDBArch(names[0], ptrsize0, endian)
+        name = names[0]
+        if name == "x86_64":
+            name = "x86-64"
+
+        return LLDBArch(name, ptrsize0, endian)
 
 
 class LLDBCommand(pwndbg.dbg_mod.CommandHandle):
@@ -627,6 +632,8 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         self.module = module
         self.debugger = debugger
+
+        load_aglib()
 
         # Load all of our commands.
         import pwndbg.commands

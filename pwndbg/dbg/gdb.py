@@ -19,6 +19,7 @@ import pwndbg
 import pwndbg.gdblib
 import pwndbg.gdblib.events
 import pwndbg.gdblib.remote
+from pwndbg.aglib import load_aglib
 from pwndbg.gdblib import gdb_version
 from pwndbg.gdblib import load_gdblib
 from pwndbg.lib.memory import PAGE_MASK
@@ -249,11 +250,17 @@ class GDBProcess(pwndbg.dbg_mod.Process):
 
     @override
     def send_remote(self, packet: str) -> str:
-        return gdb.execute(f"maintenance packet {packet}", to_string=True)
+        try:
+            return gdb.execute(f"maintenance packet {packet}", to_string=True)
+        except gdb.error as e:
+            raise pwndbg.dbg_mod.Error(e)
 
     @override
     def send_monitor(self, cmd: str) -> str:
-        return gdb.execute(f"monitor {cmd}", to_string=True)
+        try:
+            return gdb.execute(f"monitor {cmd}", to_string=True)
+        except gdb.error as e:
+            raise pwndbg.dbg_mod.Error(e)
 
     # Note that in GDB this method does not depend on the process at all!
     #
@@ -445,6 +452,7 @@ class GDB(pwndbg.dbg_mod.Debugger):
         from pwndbg.commands import load_commands
 
         load_gdblib()
+        load_aglib()
         load_commands()
 
         # Importing `pwndbg.gdblib.prompt` ends up importing code that has the
@@ -693,9 +701,12 @@ class GDB(pwndbg.dbg_mod.Debugger):
 
     @override
     def set_sysroot(self, sysroot: str) -> bool:
-        gdb.execute(f"set sysroot {sysroot}", from_tty=False)
-        # Assume it worked..
-        return True
+        try:
+            gdb.execute(f"set sysroot {sysroot}", from_tty=False)
+            # Assume it worked..
+            return True
+        except gdb.error:
+            return False
 
     @override
     def addrsz(self, address: Any) -> str:
