@@ -8,3 +8,4 @@ def load_aglib():
     import pwndbg.aglib.regs
     import pwndbg.aglib.remote
     import pwndbg.aglib.typeinfo
+    import pwndbg.aglib.vmmap
