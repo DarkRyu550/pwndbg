@@ -208,6 +208,16 @@ class Process:
         """
         raise NotImplementedError()
 
+    # This is a fairly lazy solution. We would ideally support a more robust way
+    # to query for ABIs, but Pwndbg currely only uses `show osabi` in GDB to
+    # check for whether the target is running under Linux, so we only implement
+    # that check.
+    def is_linux(self) -> bool:
+        """
+        Returns whether the current ABI is GNU/Linux.
+        """
+        raise NotImplementedError()
+
 
 class TypeCode(Enum):
     """

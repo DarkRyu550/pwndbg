@@ -595,6 +595,11 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
 
         return LLDBArch(name, ptrsize0, endian)
 
+    @override
+    def is_linux(self) -> bool:
+        # LLDB will at most tell us if this is a SysV ABI process.
+        return self.target.GetABIName().startswith("sysv")
+
 
 class LLDBCommand(pwndbg.dbg_mod.CommandHandle):
     def __init__(self, handler_name: str, command_name: str):

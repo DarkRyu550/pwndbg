@@ -301,6 +301,27 @@ class GDBProcess(pwndbg.dbg_mod.Process):
     def arch(self) -> pwndbg.dbg_mod.Arch:
         return GDBLibArch()
 
+    @override
+    def is_linux(self) -> bool:
+        # Detect current ABI of client side by 'show osabi'
+        #
+        # Examples of strings returned by `show osabi`:
+        # 'The current OS ABI is "auto" (currently "GNU/Linux").\nThe default OS ABI is "GNU/Linux".\n'
+        # 'The current OS ABI is "GNU/Linux".\nThe default OS ABI is "GNU/Linux".\n'
+        # 'El actual SO ABI es «auto» (actualmente «GNU/Linux»).\nEl SO ABI predeterminado es «GNU/Linux».\n'
+        # 'The current OS ABI is "auto" (currently "none")'
+        #
+        # As you can see, there might be GDBs with different language versions
+        # and so we have to support it there too.
+        # Lets assume and hope that `current osabi` is returned in first line in all languages...
+        abi = gdb.execute("show osabi", to_string=True).split("\n")[0]
+
+        # Currently we support those osabis:
+        # 'GNU/Linux': linux
+        # 'none': bare metal
+
+        return "GNU/Linux" in abi
+
 
 class GDBCommand(gdb.Command):
     def __init__(
