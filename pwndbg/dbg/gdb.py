@@ -730,6 +730,22 @@ class GDB(pwndbg.dbg_mod.Debugger):
             return False
 
     @override
+    def x86_disassembly_flavor(self) -> Literal["att", "intel"]:
+        try:
+            flavor = gdb.execute("show disassembly-flavor", to_string=True).lower().split('"')[1]
+        except gdb.error as e:
+            if str(e).find("disassembly-flavor") > -1:
+                flavor = "intel"
+            else:
+                raise pwndbg.dbg_mod.Error(e)
+
+        if flavor != "att" and flavor != "intel":
+            raise pwndbg.dbg_mod.Error(f"unrecognized disassembly flavor '{flavor}'")
+
+        literal: Literal["att", "intel"] = flavor
+        return literal
+
+    @override
     def addrsz(self, address: Any) -> str:
         address = int(address) & pwndbg.gdblib.arch.ptrmask
         return f"%#{2 * pwndbg.gdblib.arch.ptrsize}x" % address

@@ -852,6 +852,32 @@ class LLDB(pwndbg.dbg_mod.Debugger):
         return self.debugger.SetCurrentPlatformSDKRoot(sysroot)
 
     @override
+    def x86_disassembly_flavor(self) -> Literal["att", "intel"]:
+        # Example:
+        # (lldb) settings show target.x86-disassembly-flavor
+        # target.x86-disassembly-flavor (enum) = default
+        #
+        result = lldb.SBCommandReturnObject()
+        self.debugger.GetCommandInterpreter().HandleCommand(
+            "settings show target.x86-disassembly-flavor",
+            result,
+            False,
+        )
+        assert (
+            result.GetErrorSize() == 0
+        ), "This should be okay. Is target.x86-disassembly-flavor not a setting in all versions of LLDB?"
+
+        flavor = result.GetOutput().split("=")[1].strip()
+        if flavor == "default":
+            flavor = "intel"
+
+        if flavor != "att" and flavor != "intel":
+            raise pwndbg.dbg_mod.Error(f"unrecognized disassembly flavor '{flavor}'")
+
+        literal: Literal["att", "intel"] = flavor
+        return literal
+
+    @override
     def get_cmd_window_size(self) -> Tuple[int, int]:
         import pwndbg.ui
 

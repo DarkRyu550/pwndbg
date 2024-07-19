@@ -536,6 +536,12 @@ class Debugger:
         """
         raise NotImplementedError()
 
+    def x86_disassembly_flavor(self) -> Literal["att", "intel"]:
+        """
+        The flavor of disassembly to use for x86 targets.
+        """
+        raise NotImplementedError()
+
     # WARNING
     #
     # These are hacky parts of the API that were strictly necessary to bring up
