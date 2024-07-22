@@ -235,7 +235,7 @@ class LLDBValue(pwndbg.dbg_mod.Value):
     def dereference(self) -> pwndbg.dbg_mod.Value:
         deref = self.inner.Dereference()
 
-        if not deref.IsValid():
+        if not deref.GetError().success:
             raise pwndbg.dbg_mod.Error("could not dereference value")
 
         return LLDBValue(deref)

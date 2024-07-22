@@ -758,7 +758,6 @@ def load_commands() -> None:
         import pwndbg.commands.slab
         import pwndbg.commands.spray
         import pwndbg.commands.start
-        import pwndbg.commands.telescope
         import pwndbg.commands.tips
         import pwndbg.commands.tls
         import pwndbg.commands.valist
@@ -769,4 +768,5 @@ def load_commands() -> None:
 
     import pwndbg.commands.config
     import pwndbg.commands.cyclic
+    import pwndbg.commands.telescope
     import pwndbg.commands.vmmap
