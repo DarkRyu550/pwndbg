@@ -878,6 +878,10 @@ class LLDB(pwndbg.dbg_mod.Debugger):
         return literal
 
     @override
+    def string_limit(self) -> int:
+        return 200
+
+    @override
     def get_cmd_window_size(self) -> Tuple[int, int]:
         import pwndbg.ui
 

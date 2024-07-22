@@ -15,5 +15,6 @@ def load_aglib():
     import pwndbg.aglib.qemu
     import pwndbg.aglib.regs
     import pwndbg.aglib.remote
+    import pwndbg.aglib.strings
     import pwndbg.aglib.typeinfo
     import pwndbg.aglib.vmmap

@@ -70,6 +70,7 @@ def on_exit() -> None:
 @pwndbg.dbg.event_handler(EventType.STOP)
 def on_stop() -> None:
     pwndbg.gdblib.strings.update_length()
+    pwndbg.aglib.strings.update_length()
 
 
 import pwndbg.lib.cache

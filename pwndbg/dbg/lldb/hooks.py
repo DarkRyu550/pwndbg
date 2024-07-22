@@ -5,6 +5,7 @@ Code that sets up hooks for LLDB events.
 from __future__ import annotations
 
 import pwndbg
+import pwndbg.aglib.strings
 import pwndbg.aglib.typeinfo
 from pwndbg.dbg import EventType
 from pwndbg.dbg.lldb import LLDB
@@ -15,6 +16,11 @@ from pwndbg.dbg.lldb import LLDB
 @pwndbg.dbg.event_handler(EventType.STOP)
 def update_typeinfo() -> None:
     pwndbg.aglib.typeinfo.update()
+
+
+@pwndbg.dbg.event_handler(EventType.STOP)
+def on_stop() -> None:
+    pwndbg.aglib.strings.update_length()
 
 
 import pwndbg.lib.cache
