@@ -8,6 +8,7 @@ from pwndbg.lib.arch import Arch
 # time this module gets expanded to have the full feature set of its `gdlib`
 # coutnerpart. For now, though, this should be good enough.
 
+
 def __getattr__(name):
     arch = pwndbg.dbg.selected_inferior().arch()
     if name == "endian":

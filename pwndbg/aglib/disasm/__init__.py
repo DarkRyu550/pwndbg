@@ -18,16 +18,16 @@ from capstone import *  # noqa: F403
 
 import pwndbg
 import pwndbg.aglib.arch
+import pwndbg.aglib.disasm.arch
 import pwndbg.aglib.memory
-import pwndbg.gdblib.disasm.arch
 import pwndbg.lib.cache
+from pwndbg.aglib.disasm.arch import DEBUG_ENHANCEMENT
+from pwndbg.aglib.disasm.instruction import ALL_JUMP_GROUPS
+from pwndbg.aglib.disasm.instruction import PwndbgInstruction
+from pwndbg.aglib.disasm.instruction import SplitType
+from pwndbg.aglib.disasm.instruction import make_simple_instruction
 from pwndbg.color import message
 from pwndbg.dbg import EventType
-from pwndbg.gdblib.disasm.arch import DEBUG_ENHANCEMENT
-from pwndbg.gdblib.disasm.instruction import ALL_JUMP_GROUPS
-from pwndbg.gdblib.disasm.instruction import PwndbgInstruction
-from pwndbg.gdblib.disasm.instruction import SplitType
-from pwndbg.gdblib.disasm.instruction import make_simple_instruction
 
 # Emulation hasn't been ported yet.
 if pwndbg.dbg.is_gdblib_available():
@@ -222,7 +222,7 @@ def get_one_instruction(
         pwn_ins = PwndbgInstruction(ins)
 
         if enhance:
-            pwndbg.gdblib.disasm.arch.DisassemblyAssistant.enhance(pwn_ins, emu)
+            pwndbg.aglib.disasm.arch.DisassemblyAssistant.enhance(pwn_ins, emu)
 
         if put_cache:
             computed_instruction_cache[address] = pwn_ins

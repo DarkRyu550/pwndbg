@@ -21,12 +21,12 @@ from capstone import *  # noqa: F403
 from capstone.mips import *  # noqa: F403
 from typing_extensions import override
 
+import pwndbg.aglib.disasm.arch
 import pwndbg.color.memory as MemoryColor
-import pwndbg.gdblib.disasm.arch
 import pwndbg.lib.disasm.helpers as bit_math
-from pwndbg.gdblib.disasm.instruction import FORWARD_JUMP_GROUP
-from pwndbg.gdblib.disasm.instruction import InstructionCondition
-from pwndbg.gdblib.disasm.instruction import PwndbgInstruction
+from pwndbg.aglib.disasm.instruction import FORWARD_JUMP_GROUP
+from pwndbg.aglib.disasm.instruction import InstructionCondition
+from pwndbg.aglib.disasm.instruction import PwndbgInstruction
 
 # Emulator currently requires GDB, and we only use it here for type checking.
 if TYPE_CHECKING:
@@ -142,7 +142,7 @@ MIPS_BINARY_OPERATIONS = {
 
 
 # This class enhances 32-bit, 64-bit, and micro MIPS
-class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
+class DisassemblyAssistant(pwndbg.aglib.disasm.arch.DisassemblyAssistant):
     def __init__(self, architecture: str) -> None:
         super().__init__(architecture)
 
@@ -242,7 +242,7 @@ class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
     def _parse_memory(
         self,
         instruction: PwndbgInstruction,
-        op: pwndbg.gdblib.disasm.arch.EnhancedOperand,
+        op: pwndbg.aglib.disasm.arch.EnhancedOperand,
         emu: Emulator,
     ) -> int | None:
         """

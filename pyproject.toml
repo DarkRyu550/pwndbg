@@ -74,7 +74,7 @@ disable_error_code = [
 
 [[tool.mypy.overrides]]
 module = [
-    "pwndbg.gdblib.disasm.*",
+    "pwndbg.aglib.disasm.*",
     "pwndbg.gdblib.elf",
 ]
 disable_error_code = ["name-defined"]

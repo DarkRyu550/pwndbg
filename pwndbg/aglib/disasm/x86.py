@@ -10,6 +10,7 @@ from capstone.x86 import *  # noqa: F403
 from typing_extensions import override
 
 import pwndbg.aglib.arch
+import pwndbg.aglib.disasm.arch
 import pwndbg.aglib.memory
 import pwndbg.aglib.regs
 import pwndbg.aglib.typeinfo
@@ -17,10 +18,9 @@ import pwndbg.chain
 import pwndbg.color.memory as MemoryColor
 import pwndbg.color.message as MessageColor
 import pwndbg.enhance
-import pwndbg.gdblib.disasm.arch
-from pwndbg.gdblib.disasm.instruction import EnhancedOperand
-from pwndbg.gdblib.disasm.instruction import InstructionCondition
-from pwndbg.gdblib.disasm.instruction import PwndbgInstruction
+from pwndbg.aglib.disasm.instruction import EnhancedOperand
+from pwndbg.aglib.disasm.instruction import InstructionCondition
+from pwndbg.aglib.disasm.instruction import PwndbgInstruction
 
 # Emulator currently requires GDB, and we only use it here for type checking.
 if TYPE_CHECKING:
@@ -47,7 +47,7 @@ X86_MATH_INSTRUCTIONS = {
 
 # This class handles enhancement for x86 and x86_64. This is because Capstone itself
 # represents both architectures using the same class
-class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
+class DisassemblyAssistant(pwndbg.aglib.disasm.arch.DisassemblyAssistant):
     def __init__(self, architecture: str) -> None:
         super().__init__(architecture)
 

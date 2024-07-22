@@ -11,13 +11,13 @@ from pwnlib.util.misc import align_down
 from typing_extensions import override
 
 import pwndbg.aglib.arch
+import pwndbg.aglib.disasm.arch
 import pwndbg.aglib.memory
 import pwndbg.aglib.regs
-import pwndbg.gdblib.disasm.arch
 import pwndbg.lib.disasm.helpers as bit_math
-from pwndbg.gdblib.disasm.instruction import EnhancedOperand
-from pwndbg.gdblib.disasm.instruction import InstructionCondition
-from pwndbg.gdblib.disasm.instruction import PwndbgInstruction
+from pwndbg.aglib.disasm.instruction import EnhancedOperand
+from pwndbg.aglib.disasm.instruction import InstructionCondition
+from pwndbg.aglib.disasm.instruction import PwndbgInstruction
 
 if TYPE_CHECKING:
     from pwndbg.emu.emulator import Emulator
@@ -76,7 +76,7 @@ ARM_MATH_INSTRUCTIONS = {
 }
 
 
-class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
+class DisassemblyAssistant(pwndbg.aglib.disasm.arch.DisassemblyAssistant):
     def __init__(self, architecture: str) -> None:
         super().__init__(architecture)
 

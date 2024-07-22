@@ -13,10 +13,10 @@ import string
 from typing import Tuple
 
 import pwndbg
+import pwndbg.aglib.disasm
 import pwndbg.color.enhance as E
 import pwndbg.color.memory
 import pwndbg.gdblib.arch
-import pwndbg.gdblib.disasm
 import pwndbg.gdblib.memory
 import pwndbg.gdblib.strings
 import pwndbg.gdblib.typeinfo
@@ -112,7 +112,7 @@ def enhance(
         rwx = exe = False
 
     if exe:
-        pwndbg_instr = pwndbg.gdblib.disasm.one(value, enhance=False)
+        pwndbg_instr = pwndbg.aglib.disasm.one(value, enhance=False)
         if pwndbg_instr:
             instr = f"{pwndbg_instr.mnemonic} {pwndbg_instr.op_str}"
             if pwndbg.config.syntax_highlight:

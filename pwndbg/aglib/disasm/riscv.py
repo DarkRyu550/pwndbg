@@ -7,12 +7,12 @@ from capstone.riscv import *  # noqa: F403
 from typing_extensions import override
 
 import pwndbg.aglib.arch
+import pwndbg.aglib.disasm.arch
 import pwndbg.aglib.regs
 import pwndbg.color.memory as MemoryColor
-import pwndbg.gdblib.disasm.arch
 import pwndbg.lib.disasm.helpers as bit_math
-from pwndbg.gdblib.disasm.instruction import InstructionCondition
-from pwndbg.gdblib.disasm.instruction import PwndbgInstruction
+from pwndbg.aglib.disasm.instruction import InstructionCondition
+from pwndbg.aglib.disasm.instruction import PwndbgInstruction
 
 # Emulator currently requires GDB, and we only use it here for type checking.
 if TYPE_CHECKING:
@@ -118,7 +118,7 @@ RISCV_EMULATED_ANNOTATIONS = {
 }
 
 
-class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
+class DisassemblyAssistant(pwndbg.aglib.disasm.arch.DisassemblyAssistant):
     def __init__(self, architecture) -> None:
         super().__init__(architecture)
         self.architecture = architecture

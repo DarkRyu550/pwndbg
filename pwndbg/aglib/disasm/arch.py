@@ -23,10 +23,10 @@ import pwndbg.color.syntax_highlight as H
 import pwndbg.enhance
 import pwndbg.lib.config
 import pwndbg.lib.disasm.helpers as bit_math
-from pwndbg.gdblib.disasm.instruction import FORWARD_JUMP_GROUP
-from pwndbg.gdblib.disasm.instruction import EnhancedOperand
-from pwndbg.gdblib.disasm.instruction import InstructionCondition
-from pwndbg.gdblib.disasm.instruction import PwndbgInstruction
+from pwndbg.aglib.disasm.instruction import FORWARD_JUMP_GROUP
+from pwndbg.aglib.disasm.instruction import EnhancedOperand
+from pwndbg.aglib.disasm.instruction import InstructionCondition
+from pwndbg.aglib.disasm.instruction import PwndbgInstruction
 
 # Emulator currently requires GDB, and we only use it here for type checking.
 if TYPE_CHECKING:

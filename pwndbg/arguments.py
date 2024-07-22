@@ -11,10 +11,10 @@ from typing import Tuple
 import gdb
 from capstone import CS_GRP_INT
 
+import pwndbg.aglib.disasm
+import pwndbg.aglib.disasm.arch
 import pwndbg.chain
 import pwndbg.gdblib.arch
-import pwndbg.gdblib.disasm
-import pwndbg.gdblib.disasm.arch
 import pwndbg.gdblib.file
 import pwndbg.gdblib.memory
 import pwndbg.gdblib.proc
@@ -25,7 +25,7 @@ import pwndbg.integration
 import pwndbg.lib.abi
 import pwndbg.lib.funcparser
 import pwndbg.lib.functions
-from pwndbg.gdblib.disasm.instruction import PwndbgInstruction
+from pwndbg.aglib.disasm.instruction import PwndbgInstruction
 from pwndbg.gdblib.nearpc import c as N
 
 
