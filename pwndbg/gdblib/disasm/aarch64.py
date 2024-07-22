@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Dict
 
@@ -7,11 +8,11 @@ from capstone import *  # noqa: F403
 from capstone.arm64 import *  # noqa: F403
 from typing_extensions import override
 
+import pwndbg.aglib.arch
+import pwndbg.aglib.memory
+import pwndbg.aglib.regs
 import pwndbg.enhance
-import pwndbg.gdblib.arch
 import pwndbg.gdblib.disasm.arch
-import pwndbg.gdblib.memory
-import pwndbg.gdblib.regs
 import pwndbg.lib.disasm.helpers as bit_math
 from pwndbg.emu.emulator import Emulator
 from pwndbg.gdblib.disasm.instruction import ALL_JUMP_GROUPS
@@ -19,6 +20,10 @@ from pwndbg.gdblib.disasm.instruction import EnhancedOperand
 from pwndbg.gdblib.disasm.instruction import InstructionCondition
 from pwndbg.gdblib.disasm.instruction import PwndbgInstruction
 from pwndbg.gdblib.disasm.instruction import boolean_to_instruction_condition
+
+# Emulator currently requires GDB, and we only use it here for type checking.
+if TYPE_CHECKING:
+    from pwndbg.emu.emulator import Emulator
 
 # Negative size indicates signed read
 # None indicates the read size depends on the target register
