@@ -6,9 +6,6 @@ from enum import Enum
 from typing import Dict
 from typing import List
 from typing import Set
-from typing import TypedDict
-
-import gdb
 
 # Reverse lookup tables for debug printing
 from capstone import CS_AC
@@ -519,19 +516,11 @@ class EnhancedOperand:
         return f"[{info}]"
 
 
-# GDB does not expose a type for this
-# Type defined here: https://sourceware.org/gdb/current/onlinedocs/gdb.html/Architectures-In-Python.html#Architectures-In-Python
-class GDBDisassembledInstructionType(TypedDict):
-    addr: int
-    asm: str
-    length: int
-
-
 def make_simple_instruction(address: int) -> PwndbgInstruction:
     """
     Instantiate a PwndbgInstruction for an architecture that Capstone/pwndbg doesn't support (as defined in the CapstoneArch structure)
     """
-    ins: GDBDisassembledInstructionType = gdb.newest_frame().architecture().disassemble(address)[0]
+    ins = pwndbg.dbg.selected_inferior().disasm(address)
     asm = ins["asm"].split(maxsplit=1)
 
     pwn_ins = PwndbgInstruction(None)

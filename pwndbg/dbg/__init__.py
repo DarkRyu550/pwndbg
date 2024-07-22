@@ -11,6 +11,7 @@ from typing import List
 from typing import Literal
 from typing import Sequence
 from typing import Tuple
+from typing import TypedDict
 from typing import TypeVar
 
 import pwndbg.lib.memory
@@ -22,6 +23,12 @@ T = TypeVar("T")
 
 class Error(Exception):
     pass
+
+
+class DisassembledInstruction(TypedDict):
+    addr: int
+    asm: str
+    length: int
 
 
 class Arch:
@@ -215,6 +222,14 @@ class Process:
     def is_linux(self) -> bool:
         """
         Returns whether the current ABI is GNU/Linux.
+        """
+        raise NotImplementedError()
+
+    def disasm(self, address: int) -> DisassembledInstruction | None:
+        """
+        Returns the disassembled instruction at the given address in the address
+        space of the running process, or `None` if there's no valid instruction
+        at that address.
         """
         raise NotImplementedError()
 

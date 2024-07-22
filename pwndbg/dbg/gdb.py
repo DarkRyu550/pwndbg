@@ -322,6 +322,18 @@ class GDBProcess(pwndbg.dbg_mod.Process):
 
         return "GNU/Linux" in abi
 
+    @override
+    def disasm(self, address: int) -> pwndbg.dbg_mod.DisassembledInstruction | None:
+        # Currently the type returned by GDB here maps correctly to the type
+        # returned by this function, so we don't have to do any extra work.
+        #
+        # That type is defined in
+        # https://sourceware.org/gdb/current/onlinedocs/gdb.html/Architectures-In-Python.html#Architectures-In-Python
+        ins: pwndbg.dbg_mod.DisassembledInstruction = (
+            gdb.newest_frame().architecture().disassemble(address)[0]
+        )
+        return ins
+
 
 class GDBCommand(gdb.Command):
     def __init__(
