@@ -476,7 +476,13 @@ def process_launch(driver: ProcessDriver, relay: EventRelay, args: List[str], db
     dbg._current_process_is_gdb_remote = False
 
     io_driver = get_io_driver()
-    result = driver.launch(dbg.debugger.GetTargetAtIndex(0), io_driver, [], [], os.getcwd())
+    result = driver.launch(
+        dbg.debugger.GetTargetAtIndex(0),
+        io_driver,
+        [f"{name}={value}" for name, value in os.environ.items()],
+        [],
+        os.getcwd(),
+    )
 
     if not result.success:
         print(message.error(f"Could not launch process: {result.description}"))
