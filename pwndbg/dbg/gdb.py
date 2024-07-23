@@ -262,6 +262,28 @@ class GDBProcess(pwndbg.dbg_mod.Process):
         except gdb.error as e:
             raise pwndbg.dbg_mod.Error(e)
 
+    @override
+    def download_remote_file(self, remote_path: str, local_path: str) -> None:
+        try:
+            error = gdb.execute(f'remote get "{remote_path}" "{local_path}"', to_string=True)
+        except gdb.error as e:
+            error = str(e)
+
+        if error:
+            # If the client is configured with set debug remote 1, we need to
+            # skip [remote] lines, and not interpret as missing file. Maybe
+            # better to search for error strings. A real error will say:
+            # "Remote I/O error: No such file or directory"
+            real_error = []
+            for line in error.splitlines():
+                if not line.startswith("[remote]"):
+                    real_error.append(line)
+            if len(real_error):
+                error = "\n".join(real_error)
+                raise pwndbg.dbg_mod.Error(
+                    "Could not download remote file %r:\nError: %s" % (remote_path, error)
+                )
+
     # Note that in GDB this method does not depend on the process at all!
     #
     # From the point-of-view of the GDB implementation, this could very well be

@@ -183,6 +183,13 @@ class Process:
         """
         raise NotImplementedError()
 
+    def download_remote_file(self, remote_path: str, local_path: str) -> None:
+        """
+        Downloads the given file from the remote host and saves it to the local
+        given path. Should only be called if `is_remote()` is true.
+        """
+        raise NotImplementedError()
+
     def create_value(self, value: int, type: Type | None = None) -> Value:
         """
         Create a new value in the context of this process, with the given value

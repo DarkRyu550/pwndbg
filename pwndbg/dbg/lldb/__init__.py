@@ -505,6 +505,54 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         return result.GetOutput()
 
     @override
+    def download_remote_file(self, remote_path: str, local_path: str) -> None:
+        if not self._is_gdb_remote:
+            raise RuntimeError("Called send_monitor() on a local process")
+
+        # Ideally, we'd try using the F remote packet family[1] first, as those
+        # are guaranteed to go to the remote process. Before trying to pull
+        # the remote file from the LLDB remote platform.
+        #
+        # TODO: Add a File I/O Remote Protocol Extension interface to LLDB.download_remote_file.
+        #
+        # [1]: https://sourceware.org/gdb/current/onlinedocs/gdb.html/File_002dI_002fO-Remote-Protocol-Extension.html
+
+        # This depends on the user setting the platform correctly. In LLDB,
+        # a remote platform is distinct from a remote process, and retrieving
+        # files from the remote host is squarely the job of the remote platform.
+        # This can become a bit of a problem when the user sets up the remote
+        # process correctly, but not the remote platform.
+        #
+        # This is generally harmless when the host and remote systems don't
+        # share a readable file under the same path. But when that is the case,
+        # LLDB's remote platform system will happily answer our request, and we
+        # won't be able to tell it did anything wrong.
+        #
+        # We mitigate this by showing a warning[2] to the user when they connect
+        # to a remote process while keeping the host platform, but we can't do
+        # much beyond that at this point.
+        #
+        # [2]: See `pwndbg.dbg.lldb.repl.process_connect`.
+        platform = self.target.GetPlatform()
+
+        remote = lldb.SBFileSpec(remote_path)
+        local = lldb.SBFileSpec(local_path)
+
+        if not platform.IsValid():
+            raise pwndbg.dbg_mod.Error("no remote platform we can use")
+
+        if not remote.IsValid():
+            raise pwndbg.dbg_mod.Error(f"LLDB considers the path '{remote_path}' invalid")
+        if local.IsValid():
+            raise pwndbg.dbg_mod.Error(f"LLDB considers the path '{local_path} invalid'")
+
+        error = platform.Get(remote, local)
+        if not error.success:
+            raise pwndbg.dbg_mod.Error(
+                f"could not get remote file {remote_path}: {error.description}"
+            )
+
+    @override
     def create_value(
         self, value: int, type: pwndbg.dbg_mod.Type | None = None
     ) -> pwndbg.dbg_mod.Value:
