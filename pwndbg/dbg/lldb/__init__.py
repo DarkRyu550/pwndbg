@@ -91,6 +91,10 @@ class LLDBThread(pwndbg.dbg_mod.Thread):
     def ptid(self) -> int | None:
         return self.inner.id
 
+    @override
+    def index(self) -> int:
+        return self.inner.idx
+
 
 def map_type_code(type: lldb.SBType) -> pwndbg.dbg_mod.TypeCode:
     """
@@ -309,6 +313,17 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         self.process = process
         self.target = target
         self._is_gdb_remote = is_gdb_remote
+
+    @override
+    def pid(self) -> int | None:
+        return self.process.GetProcessID() if self.alive() else None
+
+    @override
+    def alive(self) -> bool:
+        return (
+            self.process.GetState() != lldb.eStateExited
+            and self.process.GetState() != lldb.eStateDetached
+        )
 
     @override
     def evaluate_expression(self, expression: str) -> pwndbg.dbg_mod.Value:

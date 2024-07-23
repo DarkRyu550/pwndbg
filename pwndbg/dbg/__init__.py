@@ -98,6 +98,12 @@ class Thread:
         """
         raise NotImplementedError()
 
+    def index(self) -> int:
+        """
+        The unique index of this thread from the perspective of the debugger.
+        """
+        raise NotImplementedError()
+
 
 class MemoryMap:
     """
@@ -127,6 +133,18 @@ class Process:
     def threads(self) -> List[Thread]:
         """
         Returns a list containing the threads in this process.
+        """
+        raise NotImplementedError()
+
+    def pid(self) -> int | None:
+        """
+        Returns the process ID of this process if it is alive.
+        """
+        raise NotImplementedError()
+
+    def alive(self) -> bool:
+        """
+        Returns whether this process is alive.
         """
         raise NotImplementedError()
 

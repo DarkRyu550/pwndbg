@@ -142,8 +142,12 @@ class GDBThread(pwndbg.dbg_mod.Thread):
 
     @override
     def ptid(self) -> int | None:
-        _, lwpid, _ = gdb.selected_thread().ptid
+        _, lwpid, _ = self.inner.ptid
         return lwpid
+
+    @override
+    def index(self) -> int:
+        return self.inner.num
 
 
 class GDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
@@ -168,6 +172,17 @@ class GDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
 class GDBProcess(pwndbg.dbg_mod.Process):
     def __init__(self, inner: gdb.Inferior):
         self.inner = inner
+
+    @override
+    def pid(self) -> int | None:
+        i = gdb.selected_inferior()
+        if i is not None:
+            return i.pid
+        return None
+
+    @override
+    def alive(self) -> bool:
+        return gdb.selected_thread() is not None
 
     @override
     def evaluate_expression(self, expression: str) -> pwndbg.dbg_mod.Value:
