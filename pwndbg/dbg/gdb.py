@@ -356,6 +356,75 @@ class GDBProcess(pwndbg.dbg_mod.Process):
         )
         return ins
 
+    @override
+    def module_section_locations(self) -> List[Tuple[int, int, str, str]]:
+        import pwndbg.gdblib.info
+
+        # Example:
+        #
+        # 0x0000555555572f70 - 0x0000555555572f78 is .init_array
+        # 0x0000555555572f78 - 0x0000555555572f80 is .fini_array
+        # 0x0000555555572f80 - 0x0000555555573a78 is .data.rel.ro
+        # 0x0000555555573a78 - 0x0000555555573c68 is .dynamic
+        # 0x0000555555573c68 - 0x0000555555573ff8 is .got
+        # 0x0000555555574000 - 0x0000555555574278 is .data
+        # 0x0000555555574280 - 0x0000555555575540 is .bss
+        # 0x00007ffff7fc92a8 - 0x00007ffff7fc92e8 is .note.gnu.property in /lib64/ld-linux-x86-64.so.2
+        # 0x00007ffff7fc92e8 - 0x00007ffff7fc930c is .note.gnu.build-id in /lib64/ld-linux-x86-64.so.2
+        # 0x00007ffff7fc9310 - 0x00007ffff7fc94f8 is .gnu.hash in /lib64/ld-linux-x86-64.so.2
+
+        files = pwndbg.gdblib.info.files()
+
+        main = self.main_module_name()
+        result = []
+        for line in files.splitlines():
+            line = line.strip()
+            if "-" not in line or "is" not in line:
+                # Ignore non-location lines.
+                continue
+
+            div0 = line.split("is", 1)
+            assert (
+                len(div0) == 2
+            ), "Wrong string format assumption while parsing the output of `info files`"
+
+            div1 = div0[1].split("in", 1)
+            assert (
+                len(div1) == 1 or len(div1) == 2
+            ), "Wrong string format assumption while parsing the output of `info files`"
+
+            div2 = div0[0].split("-", 1)
+            assert (
+                len(div2) == 2
+            ), "Wrong string format assumption while parsing the output of `info files`"
+
+            beg = int(div2[0].strip(), 0)
+            end = int(div2[1].strip(), 0)
+
+            if len(div1) == 2:
+                module = div1[1].strip()
+            else:
+                module = main
+
+            section = div1[0].strip()
+
+            result.append((beg, end - beg, section, module))
+
+        return result
+
+    @override
+    def main_module_name(self) -> str | None:
+        # Can GDB ever return a different value here from what we'd get with
+        # `info files`, give or take a "remote:"?
+        return gdb.current_progspace().filename
+
+    @override
+    def main_module_entry(self) -> int | None:
+        import pwndbg.gdblib.elf
+
+        # This will return 0 on failure, not None.
+        return pwndbg.gdblib.elf.entry()
+
 
 class GDBCommand(gdb.Command):
     def __init__(

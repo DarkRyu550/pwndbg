@@ -240,6 +240,29 @@ class Process:
         """
         raise NotImplementedError()
 
+    # We probably want to expose a better module interface in the future, but,
+    # for now, this is good enough.
+    def module_section_locations(self) -> List[Tuple[int, int, str, str]]:
+        """
+        Return a list of (address, size, section_name, module_name) tuples for
+        the loaded sections in every module of this process.
+        """
+        raise NotImplementedError()
+
+    def main_module_name(self) -> str | None:
+        """
+        Returns the name of the main module.
+
+        On remote targets, this may be prefixed with "target:" string.
+        """
+        raise NotImplementedError()
+
+    def main_module_entry(self) -> int | None:
+        """
+        Returns the entry point of the main module.
+        """
+        raise NotImplementedError()
+
 
 class TypeCode(Enum):
     """

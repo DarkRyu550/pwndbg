@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import os
 import sys
 from typing import Any
@@ -647,6 +648,51 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
     def is_linux(self) -> bool:
         # LLDB will at most tell us if this is a SysV ABI process.
         return self.target.GetABIName().startswith("sysv")
+
+    @override
+    def module_section_locations(self) -> List[Tuple[int, int, str, str]]:
+        result = []
+        for i in range(self.target.GetNumModules()):
+            module = self.target.GetModuleAtIndex(i)
+
+            queue = collections.deque(
+                (module.GetSectionAtIndex(j) for j in range(module.GetNumSections()))
+            )
+            while len(queue) > 0:
+                section = queue.popleft()
+                children = section.GetNumSubSections()
+                if children > 0:
+                    queue.extendleft((section.GetSubSectionAtIndex(k) for k in range(children)))
+                    continue
+
+                load = section.GetLoadAddress(self.target)
+                if load == lldb.LLDB_INVALID_ADDRESS:
+                    # This section is not loaded.
+                    continue
+
+                result.append(
+                    (load, section.GetByteSize(), section.GetName(), module.GetFileSpec().fullpath)
+                )
+
+        return result
+
+    @override
+    def main_module_name(self) -> str:
+        return (
+            self.target.GetModuleAtIndex(0).GetFileSpec().fullpath
+            if self.target.GetNumModules() > 0
+            else None
+        )
+
+    @override
+    def main_module_entry(self) -> int | None:
+        return (
+            self.target.GetModuleAtIndex(0)
+            .GetObjectFileEntryPointAddress()
+            .GetLoadAddress(self.target)
+            if self.target.GetNumModules() > 0
+            else None
+        )
 
 
 class LLDBCommand(pwndbg.dbg_mod.CommandHandle):
