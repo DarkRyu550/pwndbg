@@ -133,7 +133,7 @@ class EventRelay(EventHandler):
         self.dbg._trigger_event(EventType.NEW_MODULE)
 
 
-def run(startup: List[str] | None = None) -> None:
+def run(startup: List[str] | None = None, debug: bool = False) -> None:
     """
     Runs the Pwndbg REPL under LLDB. Optionally enters the commands given in
     `startup` as part of the startup process.
@@ -153,7 +153,7 @@ def run(startup: List[str] | None = None) -> None:
 
     # This is the driver we're going to be using to handle the process.
     relay = EventRelay(dbg)
-    driver = ProcessDriver(debug=True, event_handler=relay)
+    driver = ProcessDriver(debug=debug, event_handler=relay)
 
     # Set ourselves up to respond to SIGINT by interrupting the process if it is
     # running, and doing nothing otherwise.

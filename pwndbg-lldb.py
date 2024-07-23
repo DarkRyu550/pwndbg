@@ -62,10 +62,12 @@ if __name__ == "__main__":
     debugger = lldb.SBDebugger.Create()
     debugger.HandleCommand("command script import ./lldbinit.py")
 
+    debug = True
+
     # Initialize the debugger, proper.
     import lldbinit
 
-    lldbinit.main(debugger)
+    lldbinit.main(debugger, debug=debug)
 
     # Run our REPL until the user decides to leave.
     if len(sys.argv) > 2:
@@ -78,7 +80,7 @@ if __name__ == "__main__":
 
     from pwndbg.dbg.lldb.repl import run as run_repl
 
-    run_repl([f"target create '{target}'"] if target else None)
+    run_repl([f"target create '{target}'"] if target else None, debug=debug)
 
     # Dispose of our debugger and terminate LLDB.
     lldb.SBDebugger.Destroy(debugger)

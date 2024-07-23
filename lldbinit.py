@@ -124,7 +124,7 @@ def skip_venv(src_root) -> bool:
     )
 
 
-def main(debugger: lldb.SBDebugger) -> None:
+def main(debugger: lldb.SBDebugger, debug: bool = False) -> None:
     profiler = cProfile.Profile()
 
     start_time = None
@@ -148,7 +148,7 @@ def main(debugger: lldb.SBDebugger) -> None:
     import pwndbg.dbg.lldb
 
     pwndbg.dbg = pwndbg.dbg_mod.lldb.LLDB()
-    pwndbg.dbg.setup(debugger, __name__)
+    pwndbg.dbg.setup(debugger, __name__, debug=debug)
 
     import pwndbg.profiling
 

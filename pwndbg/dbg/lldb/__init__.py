@@ -622,7 +622,7 @@ class LLDB(pwndbg.dbg_mod.Debugger):
     _current_process_is_gdb_remote: bool
 
     @override
-    def setup(self, *args):
+    def setup(self, *args, **kwargs):
         self.exec_states = []
         self.event_handlers = {}
         self._current_process_is_gdb_remote = False
@@ -637,6 +637,8 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         self.module = module
         self.debugger = debugger
+
+        self.debug = kwargs["debug"] if "debug" in kwargs else False
 
         load_aglib()
 
@@ -675,7 +677,9 @@ class LLDB(pwndbg.dbg_mod.Debugger):
         # first imported with `command script import`, so, we install the class
         # we've just created as a global value in its dictionary.
         name = f"__LLDB_COMMAND_{command_name}"
-        print(f"adding command {command_name}, under the path {self.module}.{name}")
+
+        if self.debug:
+            print(f"[-] LLDB: Adding command {command_name}, under the path {self.module}.{name}")
 
         sys.modules[self.module].__dict__[name] = CommandHandler
 
