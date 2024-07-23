@@ -11,7 +11,9 @@ def load_aglib():
     import pwndbg.aglib.disasm.riscv
     import pwndbg.aglib.disasm.sparc
     import pwndbg.aglib.disasm.x86
+    import pwndbg.aglib.file
     import pwndbg.aglib.memory
+    import pwndbg.aglib.proc
     import pwndbg.aglib.qemu
     import pwndbg.aglib.regs
     import pwndbg.aglib.remote

@@ -693,11 +693,21 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
 
     @override
     def main_module_name(self) -> str:
-        return (
-            self.target.GetModuleAtIndex(0).GetFileSpec().fullpath
+        spec = (
+            self.target.GetModuleAtIndex(0).GetFileSpec()
             if self.target.GetNumModules() > 0
             else None
         )
+
+        if spec is None:
+            return None
+
+        # We should resolve symbolic links.
+        link = pwndbg.aglib.file.readlink(spec.fullpath)
+        if len(link) == 0:
+            return spec.fullpath
+
+        return os.path.normpath(f"{spec.dirname}/{link}")
 
     @override
     def main_module_entry(self) -> int | None:

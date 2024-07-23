@@ -9,6 +9,21 @@ from pwndbg.lib.arch import Arch
 # coutnerpart. For now, though, this should be good enough.
 
 
+ARCHS = (
+    "x86-64",
+    "i386",
+    "aarch64",
+    "mips",
+    "powerpc",
+    "sparc",
+    "arm",
+    "armcm",
+    "riscv:rv32",
+    "riscv:rv64",
+    "riscv",
+)
+
+
 def __getattr__(name):
     arch = pwndbg.dbg.selected_inferior().arch()
     if name == "endian":
