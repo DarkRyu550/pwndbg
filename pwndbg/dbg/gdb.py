@@ -582,7 +582,11 @@ class GDBValue(pwndbg.dbg_mod.Value):
         assert isinstance(type, GDBType)
         t: GDBType = type
 
-        return GDBValue(self.inner.cast(t.inner))
+        try:
+            return GDBValue(self.inner.cast(t.inner))
+        except gdb.error as e:
+            # GDB casts can fail.
+            raise pwndbg.dbg_mod.Error(e)
 
 
 class GDB(pwndbg.dbg_mod.Debugger):

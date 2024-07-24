@@ -91,6 +91,7 @@ class LLDBThread(pwndbg.dbg_mod.Thread):
 
     def __init__(self, inner: lldb.SBThread, proc: LLDBProcess):
         self.inner = inner
+        self.proc = proc
 
     @override
     def ptid(self) -> int | None:
