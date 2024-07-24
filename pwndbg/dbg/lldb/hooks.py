@@ -44,12 +44,23 @@ pwndbg.lib.cache.IS_CACHING_DISABLED_FOR["stop"] = True
 pwndbg.lib.cache.IS_CACHING_DISABLED_FOR["thread"] = True
 pwndbg.lib.cache.IS_CACHING_DISABLED_FOR["cont"] = True
 
+should_show_context = False
+
+
+@pwndbg.dbg.event_handler(EventType.STOP)
+def renew_show_context():
+    global should_show_context
+    should_show_context = True
+
 
 def prompt_hook():
     # Clear the prompt cache manually.
     pwndbg.lib.cache.clear_cache("prompt")
 
-    # We'll eventually want to call `context` here.
+    global should_show_context
+    if should_show_context:
+        pwndbg.commands.context.context()
+        should_show_context = False
 
 
 # Install the prompt hook.
