@@ -45,9 +45,11 @@ class LLDBArch(pwndbg.dbg_mod.Arch):
 
 class LLDBRegisters(pwndbg.dbg_mod.Registers):
     groups: lldb.SBValueList
+    proc: LLDBProcess
 
-    def __init__(self, groups: lldb.SBValueList):
+    def __init__(self, groups: lldb.SBValueList, proc: LLDBProcess):
         self.groups = groups
+        self.proc = proc
 
     @override
     def by_name(self, name: str) -> pwndbg.dbg_mod.Value | None:
@@ -55,16 +57,18 @@ class LLDBRegisters(pwndbg.dbg_mod.Registers):
             group = self.groups.GetValueAtIndex(i)
             member = group.GetChildMemberWithName(name)
             if member is not None and member.IsValid():
-                return LLDBValue(member)
+                return LLDBValue(member, self.proc)
 
         return None
 
 
 class LLDBFrame(pwndbg.dbg_mod.Frame):
     inner: lldb.SBFrame
+    proc: LLDBProcess
 
-    def __init__(self, inner: lldb.SBFrame):
+    def __init__(self, inner: lldb.SBFrame, proc: LLDBProcess):
         self.inner = inner
+        self.proc = proc
 
     @override
     def evaluate_expression(self, expression: str) -> pwndbg.dbg_mod.Value:
@@ -74,17 +78,18 @@ class LLDBFrame(pwndbg.dbg_mod.Frame):
         if not value.error.Success() and not opt_out:
             raise pwndbg.dbg_mod.Error(value.error.description)
 
-        return LLDBValue(value)
+        return LLDBValue(value, self.proc)
 
     @override
     def regs(self) -> pwndbg.dbg_mod.Registers:
-        return LLDBRegisters(self.inner.GetRegisters())
+        return LLDBRegisters(self.inner.GetRegisters(), self.proc)
 
 
 class LLDBThread(pwndbg.dbg_mod.Thread):
     inner: lldb.SBThread
+    proc: LLDBProcess
 
-    def __init__(self, inner: lldb.SBThread):
+    def __init__(self, inner: lldb.SBThread, proc: LLDBProcess):
         self.inner = inner
 
     @override
@@ -215,14 +220,15 @@ class LLDBType(pwndbg.dbg_mod.Type):
 
 
 class LLDBValue(pwndbg.dbg_mod.Value):
-    def __init__(self, inner: lldb.SBValue):
+    def __init__(self, inner: lldb.SBValue, proc: LLDBProcess):
+        self.proc = proc
         self.inner = inner
 
     @property
     @override
     def address(self) -> pwndbg.dbg_mod.Value | None:
         addr = self.inner.AddressOf()
-        return LLDBValue(addr) if addr.IsValid() else None
+        return LLDBValue(addr, self.proc) if addr.IsValid() else None
 
     @property
     @override
@@ -240,10 +246,51 @@ class LLDBValue(pwndbg.dbg_mod.Value):
     def dereference(self) -> pwndbg.dbg_mod.Value:
         deref = self.inner.Dereference()
 
+        ex = None
+        ty: LLDBType = None
         if not deref.GetError().success:
-            raise pwndbg.dbg_mod.Error("could not dereference value")
+            ex = pwndbg.dbg_mod.Error(
+                f"could not dereference value: {deref.GetError().description}"
+            )
 
-        return LLDBValue(deref)
+            assert isinstance(self.type, LLDBType), "LLDBValue.type must be an instance of LLDBType"
+            ty = self.type
+
+            if self.inner.unsigned != 0 or not ty.inner.IsPointerType():
+                raise ex
+
+        # Some versions of LLDB (16) will refuse to dereference null pointers,
+        # even if they're valid for the program we're debugging - eg. QEMU. This
+        # means that we have to handle them ourselves. We manually try to read
+        # the data, and build a new value based on what we've read, if we're
+        # successful.
+        if self.inner.unsigned == 0:
+            try:
+                b = self.proc.read_memory(0, self.inner.GetByteSize(), partial=False)
+            except pwndbg.dbg_mod.Error:
+                # Nope, we really can't read it.
+                raise ex
+
+            if len(b) > 0xFF:
+                # SetDataWithOwnership() is limited to 255 bits.
+                raise pwndbg.dbg_mod.Error(
+                    f"could not dereference value: value at 0x0 is too large (is {len(b)} bytes, must be at most 255)"
+                )
+
+            d = lldb.SBData()
+            e = lldb.SBError()
+            d.SetDataWithOwnership(e, b, self.proc.process.GetByteOrder(), len(b))
+
+            if not e.success:
+                raise pwndbg.dbg_mod.Error(f"could not dereference value: {e.description}")
+
+            deref = self.proc.target.CreateValueFromData("nullderef", d, ty.inner.GetPointeeType())
+            if not deref.IsValid():
+                raise pwndbg.dbg_mod.Error(
+                    "could not dereference value: SBTarget::CreateValueFromData failed"
+                )
+
+        return LLDBValue(deref, self.proc)
 
     @override
     def string(self) -> str:
@@ -279,7 +326,7 @@ class LLDBValue(pwndbg.dbg_mod.Value):
         assert isinstance(type, LLDBType)
         t: LLDBType = type
 
-        return LLDBValue(self.inner.Cast(t.inner))
+        return LLDBValue(self.inner.Cast(t.inner), self.proc)
 
 
 class LLDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
@@ -333,7 +380,7 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         if not value.error.Success() and not opt_out:
             raise pwndbg.dbg_mod.Error(value.error.description)
 
-        return LLDBValue(value)
+        return LLDBValue(value, self)
 
     @override
     def vmmap(self) -> pwndbg.dbg_mod.MemoryMap:
@@ -589,7 +636,7 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         u64: LLDBType = u64
 
         value = self.target.CreateValueFromData("#0", data, u64.inner)
-        value = LLDBValue(value)
+        value = LLDBValue(value, self)
 
         if type:
             return value.cast(type)
@@ -874,12 +921,12 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         selected = inferior.process.GetSelectedThread()
         if selected is not None and selected.IsValid():
-            return LLDBThread(selected)
+            return LLDBThread(selected, inferior)
 
         if inferior.process.GetNumThreads() <= 0:
             return None
 
-        return LLDBThread(inferior.process.GetThreadAtIndex(0))
+        return LLDBThread(inferior.process.GetThreadAtIndex(0), inferior)
 
     @override
     def selected_thread(self) -> pwndbg.dbg_mod.Thread | None:
@@ -888,7 +935,13 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         t = self.exec_states[-1].thread
         if t.IsValid():
-            return LLDBThread(t)
+            inf_q = self.selected_inferior()
+            assert isinstance(
+                inf_q, LLDBProcess
+            ), "LLDB.selected_inferior() must be an instance of LLDBProcess"
+            inf: LLDBProcess = inf_q
+
+            return LLDBThread(t, inf)
 
         return None
 
@@ -904,12 +957,12 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         selected = thread.inner.GetSelectedFrame()
         if selected is not None and selected.IsValid():
-            return LLDBFrame(selected)
+            return LLDBFrame(selected, thread.proc)
 
         if thread.inner.GetNumFrames() <= 0:
             return None
 
-        return LLDBFrame(thread.inner.GetFrameAtIndex(0))
+        return LLDBFrame(thread.inner.GetFrameAtIndex(0), thread.proc)
 
     @override
     def selected_frame(self) -> pwndbg.dbg_mod.Frame | None:
@@ -918,7 +971,13 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         f = self.exec_states[-1].frame
         if f.IsValid():
-            return LLDBFrame(f)
+            inf_q = self.selected_inferior()
+            assert isinstance(
+                inf_q, LLDBProcess
+            ), "LLDB.selected_inferior() must be an instance of LLDBProcess"
+            inf: LLDBProcess = inf_q
+
+            return LLDBFrame(f, inf)
 
         return None
 
