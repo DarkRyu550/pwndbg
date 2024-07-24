@@ -85,6 +85,7 @@ class ProcessDriver:
         timeout: int = 1,
         first_timeout: int = 1,
         only_if_started: bool = False,
+        fire_events: bool = True,
     ):
         """
         Runs the event loop of the process until the next stop event is hit, with
@@ -139,7 +140,8 @@ class ProcessDriver:
             if lldb.SBTarget.EventIsTargetEvent(event):
                 if event.GetType() == lldb.SBTarget.eBroadcastBitModulesLoaded:
                     # Notify the event handler that new modules got loaded in.
-                    self.eh.modules_loaded()
+                    if fire_events:
+                        self.eh.modules_loaded()
 
             elif lldb.SBProcess.EventIsProcessEvent(event):
                 if (
@@ -157,13 +159,15 @@ class ProcessDriver:
                     if new_state == lldb.eStateStopped and not was_resumed:
                         # The process has stopped, so we're done processing events
                         # for the time being. Trigger the stopped event and return.
-                        self.eh.suspended()
+                        if fire_events:
+                            self.eh.suspended()
                         break
 
                     if new_state == lldb.eStateRunning or new_state == lldb.eStateStepping:
                         running = True
                         # Trigger the continued event.
-                        self.eh.resumed()
+                        if fire_events:
+                            self.eh.resumed()
 
                         # Start the I/O driver here if its start got deferred
                         # because of `only_if_started` being set.
@@ -183,7 +187,8 @@ class ProcessDriver:
                         self.process = None
                         self.listener = None
 
-                        self.eh.exited()
+                        if fire_events:
+                            self.eh.exited()
 
                         break
 
@@ -266,6 +271,7 @@ class ProcessDriver:
         assert self.process.IsValid()
 
         self.io = io
+        self._run_until_next_stop(fire_events=False)
         self.eh.created()
 
         return error
@@ -305,11 +311,11 @@ class ProcessDriver:
         assert self.process.IsValid()
 
         self.io = io
-        self.eh.created()
 
         # Unlike in `launch()`, it's not guaranteed that the process will not be
         # running at this point, so we have to attach the I/O and wait until we
         # get a stop event.
-        self._run_until_next_stop()
+        self._run_until_next_stop(fire_events=False)
+        self.eh.created()
 
         return error

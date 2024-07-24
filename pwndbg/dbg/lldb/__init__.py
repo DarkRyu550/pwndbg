@@ -1006,9 +1006,7 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
     @override
     def get_cmd_window_size(self) -> Tuple[int, int]:
-        import pwndbg.ui
-
-        return pwndbg.ui.get_window_size()
+        return None, None
 
     def is_gdblib_available(self):
         return False
