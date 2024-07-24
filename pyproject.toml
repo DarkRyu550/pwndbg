@@ -80,6 +80,7 @@ disable_error_code = ["name-defined"]
 
 [[tool.mypy.overrides]]
 module = [
+    "pwndbg.aglib.arch",
     "pwndbg.color.*",
     "pwndbg.commands.context",
     "pwndbg.commands.cymbol",
@@ -109,6 +110,7 @@ disable_error_code = ["attr-defined", "index"]
 
 [[tool.mypy.overrides]]
 module = [
+    "pwndbg.aglib.nearpc",
     "pwndbg.aglib.typeinfo",
     "pwndbg.gdblib.nearpc",
     "pwndbg.gdblib.typeinfo",
