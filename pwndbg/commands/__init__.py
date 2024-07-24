@@ -702,7 +702,6 @@ def load_commands() -> None:
         import pwndbg.commands.canary
         import pwndbg.commands.checksec
         import pwndbg.commands.comments
-        import pwndbg.commands.context
         import pwndbg.commands.cpsr
         import pwndbg.commands.cymbol
         import pwndbg.commands.dev
@@ -767,6 +766,7 @@ def load_commands() -> None:
         import pwndbg.commands.xor
 
     import pwndbg.commands.config
+    import pwndbg.commands.context
     import pwndbg.commands.cyclic
     import pwndbg.commands.telescope
     import pwndbg.commands.vmmap
