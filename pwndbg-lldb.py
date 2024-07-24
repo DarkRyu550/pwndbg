@@ -62,7 +62,7 @@ if __name__ == "__main__":
     debugger = lldb.SBDebugger.Create()
     debugger.HandleCommand("command script import ./lldbinit.py")
 
-    debug = True
+    debug = "PWNDBG_LLDB_DEBUG" in os.environ
 
     # Initialize the debugger, proper.
     import lldbinit
