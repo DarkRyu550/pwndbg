@@ -654,6 +654,19 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
 
         return ctx.symbol.name
 
+    @override
+    def symbol_address_from_name(self, name: str) -> int | None:
+        symbols = self.target.FindSymbols(name)
+
+        if symbols.GetSize() == 0:
+            return None
+
+        ctx = symbols.GetContextAtIndex(0)
+        if not ctx.symbol.IsValid():
+            return None
+
+        return ctx.symbol.GetValue()
+
     def types_with_name(self, name: str) -> Sequence[pwndbg.dbg_mod.Type]:
         types = self.target.FindTypes(name)
         return [LLDBType(types.GetTypeAtIndex(i)) for i in range(types.GetSize())]

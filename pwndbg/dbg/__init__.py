@@ -225,6 +225,12 @@ class Process:
         """
         raise NotImplementedError()
 
+    def symbol_address_from_name(self, name: str) -> int | None:
+        """
+        Returns the address of a symbol, given its name.
+        """
+        raise NotImplementedError()
+
     # There is an interesting counterpart to this method that exists at the
     # module level. Depending on how we want to implement support for multiple
     # modules, it might be interesting to repeat it there.
