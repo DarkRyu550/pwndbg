@@ -3,6 +3,7 @@ from __future__ import annotations
 
 def load_aglib():
     import pwndbg.aglib.arch
+    import pwndbg.aglib.ctypes
     import pwndbg.aglib.disasm
     import pwndbg.aglib.disasm.aarch64
     import pwndbg.aglib.disasm.arm
@@ -11,6 +12,7 @@ def load_aglib():
     import pwndbg.aglib.disasm.riscv
     import pwndbg.aglib.disasm.sparc
     import pwndbg.aglib.disasm.x86
+    import pwndbg.aglib.elf
     import pwndbg.aglib.file
     import pwndbg.aglib.memory
     import pwndbg.aglib.proc

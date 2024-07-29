@@ -444,10 +444,20 @@ class GDBProcess(pwndbg.dbg_mod.Process):
 
     @override
     def main_module_entry(self) -> int | None:
-        import pwndbg.gdblib.elf
+        import pwndbg.gdblib.info
 
-        # This will return 0 on failure, not None.
-        return pwndbg.gdblib.elf.entry()
+        for line in pwndbg.gdblib.info.files().splitlines():
+            if "Entry point" in line:
+                entry_point = int(line.split()[-1], 16)
+
+                # PIE entry points are sometimes reported as an
+                # offset from the module base.
+                if entry_point < 0x10000:
+                    break
+
+                return entry_point
+
+        return None
 
 
 class GDBCommand(gdb.Command):
