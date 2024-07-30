@@ -84,6 +84,24 @@ class Frame:
         """
         raise NotImplementedError()
 
+    def pc(self) -> int:
+        """
+        The value of the program counter for this frame.
+        """
+        raise NotImplementedError()
+
+    def sp(self) -> int:
+        """
+        The value of the stack pointer for this frame.
+        """
+        raise NotImplementedError()
+
+    def parent(self) -> Frame | None:
+        """
+        The parent frame of this frame, if it exists.
+        """
+        raise NotImplementedError()
+
 
 class Thread:
     def bottom_frame(self) -> Frame:

@@ -129,6 +129,22 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
     def regs(self) -> pwndbg.dbg_mod.Registers:
         return GDBRegisters(self)
 
+    @override
+    def pc(self) -> int:
+        return int(self.inner.pc())
+
+    @override
+    def sp(self) -> int:
+        return int(self.regs().by_name("sp"))
+
+    @override
+    def parent(self) -> pwndbg.dbg_mod.Frame | None:
+        parent = self.inner.older()
+        if parent is not None:
+            return GDBFrame(parent)
+
+        return None
+
 
 class GDBThread(pwndbg.dbg_mod.Thread):
     def __init__(self, inner: gdb.InferiorThread):
@@ -172,6 +188,10 @@ class GDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
 class GDBProcess(pwndbg.dbg_mod.Process):
     def __init__(self, inner: gdb.Inferior):
         self.inner = inner
+
+    @override
+    def threads(self) -> List[pwndbg.dbg_mod.Thread]:
+        return [GDBThread(thread) for thread in gdb.selected_inferior().threads()]
 
     @override
     def pid(self) -> int | None:

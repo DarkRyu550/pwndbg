@@ -84,6 +84,21 @@ class LLDBFrame(pwndbg.dbg_mod.Frame):
     def regs(self) -> pwndbg.dbg_mod.Registers:
         return LLDBRegisters(self.inner.GetRegisters(), self.proc)
 
+    @override
+    def pc(self) -> int:
+        return self.inner.GetPC()
+
+    @override
+    def sp(self) -> int:
+        return self.inner.GetSP()
+
+    @override
+    def parent(self) -> pwndbg.dbg_mod.Frame | None:
+        parent = self.inner.get_parent_frame()
+        if parent.IsValid():
+            return LLDBFrame(self.inner.get_parent_frame(), self.proc)
+        return None
+
 
 class LLDBThread(pwndbg.dbg_mod.Thread):
     inner: lldb.SBThread
@@ -92,6 +107,13 @@ class LLDBThread(pwndbg.dbg_mod.Thread):
     def __init__(self, inner: lldb.SBThread, proc: LLDBProcess):
         self.inner = inner
         self.proc = proc
+
+    @override
+    def bottom_frame(self) -> pwndbg.dbg_mod.Frame:
+        if self.inner.GetNumFrames() <= 0:
+            return None
+
+        return LLDBFrame(self.inner.GetFrameAtIndex(0), self.proc)
 
     @override
     def ptid(self) -> int | None:
@@ -361,6 +383,13 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         self.process = process
         self.target = target
         self._is_gdb_remote = is_gdb_remote
+
+    @override
+    def threads(self) -> List[pwndbg.dbg_mod.Thread]:
+        return [
+            LLDBThread(self.process.GetThreadAtIndex(i), self)
+            for i in range(self.process.GetNumThreads())
+        ]
 
     @override
     def pid(self) -> int | None:
