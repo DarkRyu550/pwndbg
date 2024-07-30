@@ -314,12 +314,10 @@ if pwndbg.dbg.is_gdblib_available():
 
         print("%r added" % page)
 
-
     parser = argparse.ArgumentParser(description="Explore a page, trying to guess permissions.")
     parser.add_argument(
         "address", type=pwndbg.commands.sloppy_gdb_parse, help="Address of the page to explore"
     )
-
 
     @pwndbg.commands.ArgparsedCommand(parser, category=CommandCategory.MEMORY)
     @pwndbg.commands.OnlyWhenRunning
@@ -333,7 +331,6 @@ if pwndbg.dbg.is_gdblib_available():
             return
         print_vmmap_table_header()
         print(page)
-
 
     @pwndbg.commands.ArgparsedCommand(
         "Clear the vmmap cache.", category=CommandCategory.MEMORY
