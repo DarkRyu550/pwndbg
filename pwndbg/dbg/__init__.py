@@ -108,6 +108,13 @@ class Frame:
         """
         raise NotImplementedError()
 
+    def sal(self) -> Tuple[str, int] | None:
+        """
+        The filename of the source code file associated with this frame, and the
+        line number associated with it, if available.
+        """
+        raise NotImplementedError()
+
     def __eq__(self, rhs: object) -> bool:
         """
         Whether this frame is the same as the given frame. Two frames are the

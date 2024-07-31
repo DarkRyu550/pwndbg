@@ -110,6 +110,14 @@ class LLDBFrame(pwndbg.dbg_mod.Frame):
         return None
 
     @override
+    def sal(self) -> Tuple[str, int] | None:
+        line_entry = self.inner.GetLineEntry()
+        if line_entry.IsValid():
+            return line_entry.file.fullpath, line_entry.line
+
+        return None
+
+    @override
     def __eq__(self, rhs: object) -> bool:
         assert isinstance(rhs, LLDBFrame), "tried to compare LLDBFrame to other type"
         other: LLDBFrame = rhs

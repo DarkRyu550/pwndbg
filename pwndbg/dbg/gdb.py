@@ -162,6 +162,14 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
         return None
 
     @override
+    def sal(self) -> Tuple[str, int] | None:
+        sal = self.inner.find_sal()  # gdb.Symtab_and_line
+        if sal.symtab is None:
+            return None
+
+        return sal.symtab.fullname(), sal.line
+
+    @override
     def __eq__(self, rhs: object) -> bool:
         assert isinstance(rhs, GDBFrame), "tried to compare GDBFrame to other type"
         other: GDBFrame = rhs
