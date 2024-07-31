@@ -351,6 +351,33 @@ class LLDBValue(pwndbg.dbg_mod.Value):
 
         return LLDBValue(self.inner.Cast(t.inner), self.proc)
 
+    def _self_add_sub_int(self, val: int) -> pwndbg.dbg_mod.Value:
+        """
+        Adds the given signed integer to this value.
+        """
+
+        # Eventually we'll want to expand this, but currently we only use this
+        # functionality for pointer arithmetic.
+        if not self.inner.TypeIsPointerType():
+            raise NotImplementedError(
+                "Addition and subtraction to LLDBValue is only implemented for pointers"
+            )
+
+        ptrval = self.inner.unsigned
+        elmlen = self.inner.type.size
+
+        ptrval += elmlen * val
+
+        return self.proc.create_value(ptrval).cast(self.type)
+
+    @override
+    def __add__(self, rhs: int) -> pwndbg.dbg_mod.Value:
+        return self._self_add_sub_int(rhs)
+
+    @override
+    def __sub__(self, rhs: int) -> pwndbg.dbg_mod.Value:
+        return self._self_add_sub_int(-rhs)
+
 
 class LLDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
     def __init__(self, pages: List[pwndbg.lib.memory.Page]):
@@ -376,6 +403,9 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
     # that interface with the remote GDB protocol.
     _is_gdb_remote: bool
 
+    # The series number of the created value.
+    _created_value_serial: int
+
     def __init__(
         self, dbg: LLDB, process: lldb.SBProcess, target: lldb.SBTarget, is_gdb_remote: bool
     ):
@@ -383,6 +413,7 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         self.process = process
         self.target = target
         self._is_gdb_remote = is_gdb_remote
+        self._created_value_serial = 0
 
     @override
     def threads(self) -> List[pwndbg.dbg_mod.Thread]:
@@ -665,7 +696,9 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         assert isinstance(u64, LLDBType), "aglib.typeinfo contains non-LLDBType values"
         u64: LLDBType = u64
 
-        value = self.target.CreateValueFromData("#0", data, u64.inner)
+        series = self._created_value_serial
+        self._created_value_serial += 1
+        value = self.target.CreateValueFromData(f"$PWNDBG_CREATED_VALUE_{series}", data, u64.inner)
         value = LLDBValue(value, self)
 
         if type:

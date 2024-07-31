@@ -627,6 +627,20 @@ class GDBValue(pwndbg.dbg_mod.Value):
             # GDB casts can fail.
             raise pwndbg.dbg_mod.Error(e)
 
+    @override
+    def __add__(self, rhs: int) -> pwndbg.dbg_mod.Value:
+        try:
+            return GDBValue(self.inner + rhs)
+        except gdb.error as e:
+            raise pwndbg.dbg_mod.Error(e)
+
+    @override
+    def __sub__(self, rhs: int) -> pwndbg.dbg_mod.Value:
+        try:
+            return GDBValue(self.inner - rhs)
+        except gdb.error as e:
+            raise pwndbg.dbg_mod.Error(e)
+
 
 class GDB(pwndbg.dbg_mod.Debugger):
     @override

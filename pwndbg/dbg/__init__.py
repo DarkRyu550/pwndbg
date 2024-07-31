@@ -483,6 +483,20 @@ class Value:
         """
         raise NotImplementedError()
 
+    def __add__(self, rhs: int) -> Value:
+        """
+        Adds an integer to this value, if that makes sense. Throws an exception
+        otherwise.
+        """
+        raise NotImplementedError()
+
+    def __sub__(self, rhs: int) -> Value:
+        """
+        Subtract an integer from this value, if that makes sense. Throws an
+        exception otherwise.
+        """
+        raise NotImplementedError()
+
 
 class CommandHandle:
     """
