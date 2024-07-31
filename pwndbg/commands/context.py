@@ -679,23 +679,22 @@ def get_filename_and_formatted_source():
     Returns formatted, lines limited and highlighted source as list
     or if it isn't there - an empty list
     """
-    sal = gdb.selected_frame().find_sal()  # gdb.Symtab_and_line
+    sal = pwndbg.dbg.selected_frame().sal()
 
     # Check if source code is available
-    if sal.symtab is None:
-        return "", []
+    if sal is None:
+        return "", [], 0
 
     # Get the full source code
-    closest_line = sal.line
-    filename = sal.symtab.fullname()
+    filename, closest_line = sal
 
     try:
         source = get_highlight_source(filename)
     except OSError:
-        return "", []
+        return "", [], closest_line
 
     if not source:
-        return "", []
+        return "", [], closest_line
 
     n = int(source_disasm_lines)
 
@@ -729,7 +728,7 @@ def get_filename_and_formatted_source():
         )
         formatted_source.append(line)
 
-    return filename, formatted_source
+    return filename, formatted_source, closest_line
 
 
 should_decompile = pwndbg.config.add_param(
@@ -740,18 +739,14 @@ should_decompile = pwndbg.config.add_param(
 
 
 def context_code(target=sys.stdout, with_banner=True, width=None):
-    filename, formatted_source = get_filename_and_formatted_source()
+    filename, formatted_source, line = get_filename_and_formatted_source()
 
     # Try getting source from files
     if formatted_source:
         bannerline = (
             [pwndbg.ui.banner("Source (code)", target=target, width=width)] if with_banner else []
         )
-        return (
-            bannerline
-            + ["In file: %s:%d" % (filename, gdb.selected_frame().find_sal().line)]
-            + formatted_source
-        )
+        return bannerline + ["In file: %s:%d" % (filename, line)] + formatted_source
 
     if should_decompile:
         # Will be None if decompilation fails
@@ -997,6 +992,7 @@ context_sections = {
     "d": context_disasm,
     "s": context_stack,
     "b": context_backtrace,
+    "c": context_code,
 }
 
 
@@ -1005,7 +1001,6 @@ if pwndbg.dbg.is_gdblib_available():
     context_sections = {
         **context_sections,
         "a": context_args,
-        "c": context_code,
         "e": context_expressions,
         "g": context_ghidra,
         "h": context_heap_tracker,
