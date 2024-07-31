@@ -797,15 +797,15 @@ def context_backtrace(with_banner=True, target=sys.stdout, width=None):
     if with_banner:
         result.append(pwndbg.ui.banner("backtrace", target=target, width=width))
 
-    this_frame = gdb.selected_frame()
+    this_frame = pwndbg.dbg.selected_frame()
     newest_frame = this_frame
     oldest_frame = this_frame
 
     for i in range(backtrace_lines - 1):
         try:
-            candidate = oldest_frame.older()
-        # We catch gdb.error in case of a `gdb.error: PC not saved` case
-        except (gdb.MemoryError, gdb.error):
+            candidate = oldest_frame.parent()
+        # We catch an error in case of a `gdb.error: PC not saved` case
+        except pwndbg.dbg_mod.Error:
             break
 
         if not candidate:
@@ -813,7 +813,7 @@ def context_backtrace(with_banner=True, target=sys.stdout, width=None):
         oldest_frame = candidate
 
     for i in range(backtrace_lines - 1):
-        candidate = newest_frame.newer()
+        candidate = newest_frame.child()
         if not candidate:
             break
         newest_frame = candidate
@@ -825,7 +825,7 @@ def context_backtrace(with_banner=True, target=sys.stdout, width=None):
         prefix = bt_prefix if frame == this_frame else " " * len(bt_prefix)
         prefix = f" {c.prefix(prefix)}"
         addrsz = c.address(pwndbg.ui.addrsz(frame.pc()))
-        symbol = c.symbol(pwndbg.gdblib.symbol.get(int(frame.pc())))
+        symbol = c.symbol(pwndbg.dbg.selected_inferior().symbol_name_at_address(int(frame.pc())))
         if symbol:
             addrsz = addrsz + " " + symbol
         line = map(str, (prefix, c.frame_label("%s%i" % (backtrace_frame_label, i)), addrsz))
@@ -835,7 +835,7 @@ def context_backtrace(with_banner=True, target=sys.stdout, width=None):
         if frame == oldest_frame:
             break
 
-        frame = frame.older()
+        frame = frame.parent()
         i += 1
     return result
 
@@ -996,6 +996,7 @@ context_sections = {
     "r": context_regs,
     "d": context_disasm,
     "s": context_stack,
+    "b": context_backtrace,
 }
 
 
@@ -1005,7 +1006,6 @@ if pwndbg.dbg.is_gdblib_available():
         **context_sections,
         "a": context_args,
         "c": context_code,
-        "b": context_backtrace,
         "e": context_expressions,
         "g": context_ghidra,
         "h": context_heap_tracker,
