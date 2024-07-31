@@ -153,6 +153,13 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
 
         return None
 
+    @override
+    def __eq__(self, rhs: object) -> bool:
+        assert isinstance(rhs, GDBFrame), "tried to compare GDBFrame to other type"
+        other: GDBFrame = rhs
+
+        return self.inner == other.inner
+
 
 class GDBThread(pwndbg.dbg_mod.Thread):
     def __init__(self, inner: gdb.InferiorThread):

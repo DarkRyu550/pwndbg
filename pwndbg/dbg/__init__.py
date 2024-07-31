@@ -108,6 +108,14 @@ class Frame:
         """
         raise NotImplementedError()
 
+    def __eq__(self, rhs: object) -> bool:
+        """
+        Whether this frame is the same as the given frame. Two frames are the
+        same if they point to the same stack frame and have the same execution
+        context.
+        """
+        raise NotImplementedError()
+
 
 class Thread:
     def bottom_frame(self) -> Frame:

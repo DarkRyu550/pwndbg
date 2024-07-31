@@ -109,6 +109,13 @@ class LLDBFrame(pwndbg.dbg_mod.Frame):
 
         return None
 
+    @override
+    def __eq__(self, rhs: object) -> bool:
+        assert isinstance(rhs, LLDBFrame), "tried to compare LLDBFrame to other type"
+        other: LLDBFrame = rhs
+
+        return self.inner == other.inner
+
 
 class LLDBThread(pwndbg.dbg_mod.Thread):
     inner: lldb.SBThread
