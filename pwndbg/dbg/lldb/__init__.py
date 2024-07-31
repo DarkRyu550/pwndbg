@@ -6,6 +6,7 @@ import sys
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Generator
 from typing import List
 from typing import Literal
 from typing import Sequence
@@ -16,6 +17,7 @@ import lldb
 from typing_extensions import override
 
 import pwndbg
+import pwndbg.lib.memory
 from pwndbg.aglib import load_aglib
 
 T = TypeVar("T")
@@ -603,6 +605,89 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
             raise pwndbg.dbg_mod.Error(f"could not write {len(data)} bytes: {e}")
 
         return count
+
+    @override
+    def find_in_memory(
+        self,
+        pattern: bytearray,
+        start: int,
+        size: int,
+        align: int,
+        max_matches: int = -1,
+        step: int = -1,
+    ) -> Generator[int, None, None]:
+        if max_matches == 0 or len(pattern) == 0:
+            # Nothing to match.
+            return
+
+        # LLDB 19.1 and greater has a FindRangesInMemory function[1], but, as of
+        # the writing of this comment, that verson is still in RC1 stage, so new
+        # that it is not reasonable for us to depend on that function being
+        # available. So what we do here is mostly the same search procedure
+        # done by LLDB, but much slower on account of FFI and Python.
+        #
+        # This really is not ideal for large ranges and smaller alignments.
+        #
+        # [1]: https://github.com/llvm/llvm-project/commit/0d4da0df166ea7512c6e97e182b21cd706293eaa
+
+        offset = start - pwndbg.lib.memory.round_up(start, align)
+        moffset = 0
+        matched = 0
+        yielded = 0
+
+        e = lldb.SBError()
+        while offset < size and (max_matches < 0 or yielded < max_matches):
+            # Because we would reject any match that is not correctly aligned
+            # anyway, we can perform the search in alignment-sized chunks,
+            # rather than one byte at a time. This is a nice little optimization
+            # that allows us to cut the number of iterations by a factor of
+            # `align`. Additionally, we can read only as much as we'd need to
+            # complete the match if that is smaller than the alignment.
+            to_read = min(len(pattern) - matched, align)
+            if to_read > size - offset:
+                # Even if we found a match here, part of it would be outside the
+                # range specified for the search, and we should not yield it.
+                break
+
+            read = self.process.ReadMemory(start + offset, to_read, e)
+            offset += align
+
+            if e.success:
+                if pattern[matched : matched + len(read)] == read:
+                    # This part of the slice matches the continuation of the
+                    # pattern.
+                    matched += len(read)
+                elif pattern[: len(read)] == read:
+                    # The pattern may start in the slice we reject, so we have
+                    # to account for that.
+                    offset -= align
+                    moffset = offset
+                    matched = 0
+                else:
+                    # This part of the slice doesn't match the continuation of
+                    # the pattern. Restart the match.
+                    moffset = offset
+                    matched = 0
+
+                if matched == len(pattern):
+                    # We have a complete sequence. Yield the address at which it
+                    # was found.
+                    yield start + moffset
+                    yielded += 1
+
+                    if step > 0:
+                        # Step on success if a step amount was given.
+                        offset -= align
+                        offset = pwndbg.lib.memory.round_up(
+                            pwndbg.lib.memory.round_down(offset, step) + step, align
+                        )
+
+                    moffset = offset
+                    matched = 0
+            else:
+                # We couldn't read this slice, move on.
+                moffset = offset
+                matched = 0
 
     @override
     def is_remote(self) -> bool:

@@ -7,6 +7,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 from typing import Callable
+from typing import Generator
 from typing import List
 from typing import Literal
 from typing import Sequence
@@ -216,6 +217,24 @@ class Process:
         given address in the memory space of this process.
 
         Throws an exception if writing fails and partial is False.
+        """
+        raise NotImplementedError()
+
+    def find_in_memory(
+        self,
+        pattern: bytearray,
+        start: int,
+        size: int,
+        align: int,
+        max_matches: int = -1,
+        step: int = -1,
+    ) -> Generator[int, None, None]:
+        """
+        Searches for a bit pattern in the memory space of the process. The bit
+        pattern can be searched for in a given memory range, and with a given
+        alignment. The maximum number of matches that will be generated is
+        given by `max_matches`. A value of `max_matches` of `-1` will generate
+        all matches.
         """
         raise NotImplementedError()
 
