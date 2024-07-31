@@ -145,6 +145,14 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
 
         return None
 
+    @override
+    def child(self) -> pwndbg.dbg_mod.Frame | None:
+        child = self.inner.newer()
+        if child is not None:
+            return GDBFrame(child)
+
+        return None
+
 
 class GDBThread(pwndbg.dbg_mod.Thread):
     def __init__(self, inner: gdb.InferiorThread):

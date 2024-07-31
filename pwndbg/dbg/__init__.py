@@ -102,6 +102,12 @@ class Frame:
         """
         raise NotImplementedError()
 
+    def child(self) -> Frame | None:
+        """
+        The child frame of this frame, if it exists.
+        """
+        raise NotImplementedError()
+
 
 class Thread:
     def bottom_frame(self) -> Frame:

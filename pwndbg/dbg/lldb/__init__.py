@@ -99,6 +99,16 @@ class LLDBFrame(pwndbg.dbg_mod.Frame):
             return LLDBFrame(self.inner.get_parent_frame(), self.proc)
         return None
 
+    @override
+    def child(self) -> pwndbg.dbg_mod.Frame | None:
+        index = self.inner.idx - 1
+        if index >= 0:
+            frame = self.inner.thread.frame[index]
+            if frame.IsValid():
+                return LLDBFrame(frame, self.proc)
+
+        return None
+
 
 class LLDBThread(pwndbg.dbg_mod.Thread):
     inner: lldb.SBThread
