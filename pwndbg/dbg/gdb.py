@@ -139,17 +139,25 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
 
     @override
     def parent(self) -> pwndbg.dbg_mod.Frame | None:
-        parent = self.inner.older()
-        if parent is not None:
-            return GDBFrame(parent)
+        try:
+            parent = self.inner.older()
+            if parent is not None:
+                return GDBFrame(parent)
+        except (gdb.error, gdb.MemoryError) as e:
+            # We can encounter a `gdb.error: PC not saved` here.
+            raise pwndbg.dbg_mod.Error(e)
 
         return None
 
     @override
     def child(self) -> pwndbg.dbg_mod.Frame | None:
-        child = self.inner.newer()
-        if child is not None:
-            return GDBFrame(child)
+        try:
+            child = self.inner.newer()
+            if child is not None:
+                return GDBFrame(child)
+        except (gdb.error, gdb.MemoryError) as e:
+            # We can encounter a `gdb.error: PC not saved` here.
+            raise pwndbg.dbg_mod.Error(e)
 
         return None
 
