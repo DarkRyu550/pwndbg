@@ -24,6 +24,20 @@ from pwndbg.dbg import selection
 T = TypeVar("T")
 
 
+def rename_register(name: str, proc: LLDBProcess) -> str:
+    """
+    Some register names differ between Pwndbg/GDB and LLDB. This function takes
+    in a register name in the Pwndbg/GDB convention and returns the equivalent
+    LLDB name for the register.
+    """
+
+    if name == "eflags" and proc.arch().arch() == "x86-64":
+        return "rflags"
+
+    # Nothing to change.
+    return name
+
+
 class LLDBArch(pwndbg.dbg_mod.Arch):
     def __init__(self, name: str, ptrsize: int, endian: Literal["little", "big"]):
         self._endian = endian
@@ -56,6 +70,8 @@ class LLDBRegisters(pwndbg.dbg_mod.Registers):
 
     @override
     def by_name(self, name: str) -> pwndbg.dbg_mod.Value | None:
+        name = rename_register(name, self.proc)
+
         for i in range(self.groups.GetSize()):
             group = self.groups.GetValueAtIndex(i)
             member = group.GetChildMemberWithName(name)
@@ -91,6 +107,8 @@ class LLDBFrame(pwndbg.dbg_mod.Frame):
     def reg_write(self, name: str, val: int) -> bool:
         if val < 0:
             raise RuntimeError("Tried to write a register with a negative value")
+
+        name = rename_register(name, self.proc)
 
         # This one is quite bad. LLDB register writes happen through the private
         # API[1]. This means we have to do our register writes using commands,
