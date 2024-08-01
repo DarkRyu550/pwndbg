@@ -616,20 +616,12 @@ class ArgparsedCommand:
         )
 
 
-# These values are only used by `sloppy_gdb_parse`, and it, in turn, only seems
-# to end up being used by `pwndbg.commands.windbg`, through `AddressExpr` and
-# `HexOrAddressExpr`. By gating both these values and the `windbg` command family
-# behind `is_gdblib_available`, we get around that.
-#
-# TODO: Remove this after the `windbg` command family has been ported to the Debugger API.
-if pwndbg.dbg.is_gdblib_available():
-    import gdb
-
-    # We use a 64-bit max value literal here instead of pwndbg.gdblib.arch.current
-    # as realistically its ok to pull off the biggest possible type here
-    # We cache its GDB value type which is 'unsigned long long'
-    _mask = 0xFFFFFFFFFFFFFFFF
-    _mask_val_type = gdb.Value(_mask).type
+# We use a 64-bit max value literal here instead of pwndbg.gdblib.arch.current
+# as realistically its ok to pull off the biggest possible type here
+# We cache its value type which is 'unsigned long long'
+_mask = 0xFFFFFFFFFFFFFFFF
+_mask_val_type: pwndbg.dbg_mod.Type = None
+_mask_val_proc: pwndbg.dbg_mod.Process = None
 
 
 def sloppy_gdb_parse(s: str) -> int | str:
@@ -657,6 +649,14 @@ def sloppy_gdb_parse(s: str) -> int | str:
         # pwndbg> pi int(gdb.parse_and_eval('__libc_start_main'))
         #
         # Here, the _mask_val.type should be `unsigned long long`
+        global _mask_val_type
+        global _mask_val_proc
+
+        i = pwndbg.dbg.selected_inferior()
+        if not _mask_val_type or _mask_val_proc != i:
+            _mask_val_type = i.create_value(_mask).type
+            _mask_val_proc = i
+
         return int(val.cast(_mask_val_type))
     except (TypeError, pwndbg.dbg_mod.Error):
         return s
@@ -759,7 +759,6 @@ def load_commands() -> None:
         import pwndbg.commands.tls
         import pwndbg.commands.valist
         import pwndbg.commands.version
-        import pwndbg.commands.windbg
         import pwndbg.commands.xinfo
         import pwndbg.commands.xor
 
@@ -770,3 +769,4 @@ def load_commands() -> None:
     import pwndbg.commands.dumpargs
     import pwndbg.commands.telescope
     import pwndbg.commands.vmmap
+    import pwndbg.commands.windbg
