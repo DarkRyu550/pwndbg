@@ -16,6 +16,8 @@ from typing import TypeVar
 
 from typing_extensions import ParamSpec
 
+import pwndbg.aglib.proc
+import pwndbg.aglib.qemu
 import pwndbg.exception
 
 # These aren't available under LLDB, and we can't get rid of them until all of
@@ -25,8 +27,6 @@ import pwndbg.exception
 if pwndbg.dbg.is_gdblib_available():
     import pwndbg.gdblib.heap
     import pwndbg.gdblib.kernel
-    import pwndbg.gdblib.proc
-    import pwndbg.gdblib.qemu
     import pwndbg.gdblib.regs
     from pwndbg.gdblib.heap.ptmalloc import DebugSymsHeap
     from pwndbg.gdblib.heap.ptmalloc import GlibcMemoryAllocator
@@ -279,10 +279,10 @@ def fix_int_reraise(*a, **kw) -> int:
 def OnlyWithFile(function: Callable[P, T]) -> Callable[P, Optional[T]]:
     @functools.wraps(function)
     def _OnlyWithFile(*a: P.args, **kw: P.kwargs) -> Optional[T]:
-        if pwndbg.gdblib.proc.exe:
+        if pwndbg.aglib.proc.exe:
             return function(*a, **kw)
         else:
-            if pwndbg.gdblib.qemu.is_qemu():
+            if pwndbg.aglib.qemu.is_qemu():
                 log.error("Could not determine the target binary on QEMU.")
             else:
                 log.error(f"{function.__name__}: There is no file loaded.")
@@ -294,7 +294,7 @@ def OnlyWithFile(function: Callable[P, T]) -> Callable[P, Optional[T]]:
 def OnlyWhenQemuKernel(function: Callable[P, T]) -> Callable[P, Optional[T]]:
     @functools.wraps(function)
     def _OnlyWhenQemuKernel(*a: P.args, **kw: P.kwargs) -> Optional[T]:
-        if pwndbg.gdblib.qemu.is_qemu_kernel():
+        if pwndbg.aglib.qemu.is_qemu_kernel():
             return function(*a, **kw)
         else:
             log.error(
@@ -308,7 +308,7 @@ def OnlyWhenQemuKernel(function: Callable[P, T]) -> Callable[P, Optional[T]]:
 def OnlyWhenUserspace(function: Callable[P, T]) -> Callable[P, Optional[T]]:
     @functools.wraps(function)
     def _OnlyWhenUserspace(*a: P.args, **kw: P.kwargs) -> Optional[T]:
-        if not pwndbg.gdblib.qemu.is_qemu_kernel():
+        if not pwndbg.aglib.qemu.is_qemu_kernel():
             return function(*a, **kw)
         else:
             log.error(
@@ -374,7 +374,7 @@ def OnlyWhenRunning(function: Callable[P, T]) -> Callable[P, Optional[T]]:
     @functools.wraps(function)
     def _OnlyWhenRunning(*a: P.args, **kw: P.kwargs) -> Optional[T]:
         # TODO: Properly support OnlyWhenRunning without `gdblib`.
-        if not pwndbg.dbg.is_gdblib_available() or pwndbg.gdblib.proc.alive:
+        if pwndbg.aglib.proc.alive:
             return function(*a, **kw)
         else:
             log.error(f"{function.__name__}: The program is not being run.")
