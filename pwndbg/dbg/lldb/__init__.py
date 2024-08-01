@@ -888,7 +888,23 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
 
         name = names[0]
         if name == "x86_64":
+            # GDB and Pwndbg use a different name for x86_64.
             name = "x86-64"
+        elif name == "arm":
+            # LLDB doesn't distinguish between ARM Cortex-M and other varieties
+            # of ARM. Pwndbg needs that distinction, so we attempt to detect
+            # Cortex-M varieties by querying for the presence of the `xpsr`
+            # register.
+            has_xpsr = [
+                thread.bottom_frame().regs().by_name("xpsr") is not None
+                for thread in self.threads()
+            ]
+            assert (
+                all(has_xpsr) or not any(has_xpsr)
+            ), "Either all threads are Cortex-M or none are, Pwndbg doesn't know how to handle other cases"
+
+            if any(has_xpsr):
+                name = "armcm"
 
         return LLDBArch(name, ptrsize0, endian)
 
