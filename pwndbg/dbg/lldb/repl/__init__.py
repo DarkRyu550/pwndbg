@@ -589,6 +589,9 @@ def process_connect(driver: ProcessDriver, relay: EventRelay, args: List[str], d
             ), "Could not delete the target we've just created. What?"
         return
 
+    # Tell the debugger that the process was suspended.
+    dbg._trigger_event(EventType.STOP)
+
 
 gdb_remote_ap = argparse.ArgumentParser(add_help=False)
 gdb_remote_ap.add_argument("remoteurl")
