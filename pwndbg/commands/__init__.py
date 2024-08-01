@@ -322,7 +322,7 @@ def OnlyWhenUserspace(function: Callable[P, T]) -> Callable[P, Optional[T]]:
 def OnlyWithArch(arch_names: List[str]) -> Callable[[Callable[P, T]], Callable[P, Optional[T]]]:
     """Decorates function to work only with the specified archictectures."""
     for arch in arch_names:
-        if arch not in pwndbg.gdblib.arch_mod.ARCHS:
+        if arch not in pwndbg.aglib.arch.ARCHS:
             raise ValueError(
                 f"OnlyWithArch used with unsupported arch={arch}. Must be one of {', '.join(arch_names)}"
             )
@@ -330,7 +330,7 @@ def OnlyWithArch(arch_names: List[str]) -> Callable[[Callable[P, T]], Callable[P
     def decorator(function: Callable[P, T]) -> Callable[P, Optional[T]]:
         @functools.wraps(function)
         def _OnlyWithArch(*a: P.args, **kw: P.kwargs) -> Optional[T]:
-            if pwndbg.gdblib.arch.name in arch_names:
+            if pwndbg.aglib.arch.name in arch_names:
                 return function(*a, **kw)
             else:
                 arches_str = ", ".join(arch_names)
@@ -616,7 +616,7 @@ class ArgparsedCommand:
         )
 
 
-# We use a 64-bit max value literal here instead of pwndbg.gdblib.arch.current
+# We use a 64-bit max value literal here instead of pwndbg.aglib.arch.current
 # as realistically its ok to pull off the biggest possible type here
 # We cache its value type which is 'unsigned long long'
 _mask = 0xFFFFFFFFFFFFFFFF
