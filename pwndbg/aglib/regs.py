@@ -118,9 +118,7 @@ class module(ModuleType):
         if attr in ("last", "previous"):
             super().__setattr__(attr, val)
         else:
-            # Not catching potential gdb.error as this should never
-            # be called in a case when this can throw
-            raise NotImplementedError()
+            pwndbg.dbg.selected_frame().reg_write(attr, int(val))
 
     @pwndbg.lib.cache.cache_until("stop", "prompt")
     def __getitem__(self, item: Any) -> int | None:
