@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import re
 import signal
 from typing import Any
@@ -22,6 +21,7 @@ import pwndbg.gdblib.events
 import pwndbg.gdblib.remote
 import pwndbg.lib.memory
 from pwndbg.aglib import load_aglib
+from pwndbg.dbg import selection
 from pwndbg.gdblib import gdb_version
 from pwndbg.gdblib import load_gdblib
 from pwndbg.lib.memory import PAGE_MASK
@@ -66,38 +66,6 @@ def parse_and_eval(expression: str, global_context: bool) -> gdb.Value:
         return gdb.parse_and_eval(expression)
 
 
-@contextlib.contextmanager
-def selection(target: T, get_current: Callable[[], T], select: Callable[[T], None]):
-    """
-    GDB has a lot of global state. Many of our queries require that we select a
-    given object globally before we make them. When doing that, we must always
-    be careful to return selection to its previous state before exiting. This
-    class automatically manages the selection of a single object type.
-
-    Upon entrace to the `with` block, the element given by `target` will be
-    compared to the object returned by calling `get_current`. If they
-    compare different, the value previously returned by `get_current` is
-    saved, and the element given by `target` will be selected by passing it
-    as an argument to `select`, and, after execution leaves the `with`
-    block, the previously saved element will be selected in the same fashion
-    as the first element.
-
-    If the elements don't compare different, this is a no-op.
-    """
-
-    current = get_current()
-    restore = False
-    if current != target:
-        select(target)
-        restore = True
-
-    try:
-        yield
-    finally:
-        if restore:
-            select(current)
-
-
 class GDBRegisters(pwndbg.dbg_mod.Registers):
     def __init__(self, frame: GDBFrame):
         self.frame = frame
@@ -130,6 +98,18 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
     @override
     def regs(self) -> pwndbg.dbg_mod.Registers:
         return GDBRegisters(self)
+
+    @override
+    def reg_write(self, name: str, val: int) -> bool:
+        if name not in pwndbg.aglib.regs.all:
+            return False
+
+        with selection(self.inner, lambda: gdb.selected_frame(), lambda f: f.select()):
+            try:
+                gdb.execute(f"set ${name} = {val}")
+                return True
+            except gdb.error as e:
+                raise pwndbg.dbg_mod.Error(e)
 
     @override
     def pc(self) -> int:

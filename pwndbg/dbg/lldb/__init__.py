@@ -19,6 +19,7 @@ from typing_extensions import override
 import pwndbg
 import pwndbg.lib.memory
 from pwndbg.aglib import load_aglib
+from pwndbg.dbg import selection
 
 T = TypeVar("T")
 
@@ -85,6 +86,71 @@ class LLDBFrame(pwndbg.dbg_mod.Frame):
     @override
     def regs(self) -> pwndbg.dbg_mod.Registers:
         return LLDBRegisters(self.inner.GetRegisters(), self.proc)
+
+    @override
+    def reg_write(self, name: str, val: int) -> bool:
+        if val < 0:
+            raise RuntimeError("Tried to write a register with a negative value")
+
+        # This one is quite bad. LLDB register writes happen through the private
+        # API[1]. This means we have to do our register writes using commands,
+        # GDB style, and, because the command that writes registers uses the
+        # currently selected frame in order to determine the context in which it
+        # is going to change values is, we have to some global state frame
+        # selection.
+        #
+        # [1]: https://github.com/llvm/llvm-project/blob/3af26be42e39405d9b3e1023853218dea20b5d1f/lldb/source/Commands/CommandObjectRegister.cpp#L336
+
+        frame = self.inner
+        thread = frame.thread
+        process = thread.process
+        debugger = process.target.debugger
+
+        # First, we select the right target in the debugger.
+        with selection(
+            process.target,
+            lambda: debugger.GetSelectedTarget(),
+            lambda t: debugger.SetSelectedTarget(t),
+        ):
+            # Then, we select the right thread in the process.
+            with selection(
+                thread,
+                lambda: process.GetSelectedThread(),
+                lambda t: process.SetSelectedThread(t),
+            ):
+                # Then, we select the right frame in the thread.
+                with selection(
+                    frame,
+                    lambda: thread.GetSelectedFrame(),
+                    lambda f: thread.SetSelectedFrame(f.idx),
+                ):
+                    # Run the command that sets the value of the register.
+                    result = lldb.SBCommandReturnObject()
+                    debugger.GetCommandInterpreter().HandleCommand(
+                        f"register write {name} {val}",
+                        result,
+                        False,
+                    )
+
+                    if result.GetErrorSize() > 0:
+                        error = result.GetError()
+                        print(error)
+                        if f"'{name}'" in error and "not found" in error:
+                            # Likely "error: Register not found for '{name}'"
+                            return False
+                        raise pwndbg.dbg_mod.Error(
+                            f"could not set value of register '{name}' to '{val}': {error}"
+                        )
+
+                    # This might slow things down, but I'm not entirely sure selecting
+                    # the thread in the way we do is enough to make LLDB write to the
+                    # right register in all cases, so we check the value of the register
+                    # against what we wrote, to be extra safe.
+                    assert (
+                        int(self.regs().by_name(name)) == val
+                    ), "wrote to a register, but read back different value. this is a bug"
+
+                    return True
 
     @override
     def pc(self) -> int:

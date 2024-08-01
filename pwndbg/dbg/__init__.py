@@ -4,6 +4,7 @@ The abstracted debugger interface.
 
 from __future__ import annotations
 
+import contextlib
 from enum import Enum
 from typing import Any
 from typing import Callable
@@ -20,6 +21,38 @@ import pwndbg.lib.memory
 dbg: Debugger = None
 
 T = TypeVar("T")
+
+
+@contextlib.contextmanager
+def selection(target: T, get_current: Callable[[], T], select: Callable[[T], None]):
+    """
+    Debuggers have global state. Many of our queries require that we select a
+    given object globally before we make them. When doing that, we must always
+    be careful to return selection to its previous state before exiting. This
+    class automatically manages the selection of a single object type.
+
+    Upon entrace to the `with` block, the element given by `target` will be
+    compared to the object returned by calling `get_current`. If they
+    compare different, the value previously returned by `get_current` is
+    saved, and the element given by `target` will be selected by passing it
+    as an argument to `select`, and, after execution leaves the `with`
+    block, the previously saved element will be selected in the same fashion
+    as the first element.
+
+    If the elements don't compare different, this is a no-op.
+    """
+
+    current = get_current()
+    restore = False
+    if current != target:
+        select(target)
+        restore = True
+
+    try:
+        yield
+    finally:
+        if restore:
+            select(current)
 
 
 class Error(Exception):
@@ -82,6 +115,14 @@ class Frame:
     def regs(self) -> Registers:
         """
         Access the values of the registers in this frame.
+        """
+        raise NotImplementedError()
+
+    def reg_write(self, name: str, val: int) -> bool:
+        """
+        Sets the value of the register with the given name to the given value.
+        Returns true if the register exists, false othewise. Throws an exception
+        if the register exists but cannot be written to.
         """
         raise NotImplementedError()
 
