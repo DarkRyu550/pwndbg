@@ -999,6 +999,8 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         pwndbg.commands.load_commands()
 
+        pwndbg.commands.comments.init()
+
         import pwndbg.dbg.lldb.hooks
         import pwndbg.dbg.lldb.pset
 
