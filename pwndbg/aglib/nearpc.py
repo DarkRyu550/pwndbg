@@ -33,7 +33,6 @@ cfg_prefix = ""
 
 if pwndbg.dbg.is_gdblib_available():
     # These haven't been ported yet.
-    import pwndbg.arguments
     import pwndbg.gdblib.heap
     import pwndbg.ida
 
@@ -57,6 +56,10 @@ c = ColorConfig(
         ColorParamSpec("branch-marker", "normal", "color for nearpc command (branch marker line)"),
     ],
 )
+
+# Yikes! `pwndbg.arguments` imports `c` from this module, so this import
+# triggers a cyclic import error unless we import it after we define `c`.
+import pwndbg.arguments
 
 nearpc_branch_marker = pwndbg.color.theme.add_param(
     f"{cfg_prefix}nearpc-branch-marker", "    ↓", "branch marker line for nearpc command"
@@ -332,10 +335,9 @@ def nearpc(
 
         # For call instructions, attempt to resolve the target and
         # determine the number of arguments.
-        if show_args and pwndbg.dbg.is_gdblib_available():
-            result.extend(
-                "%8s%s" % ("", arg) for arg in pwndbg.arguments.format_args(instruction=instr)
-            )
+        result.extend(
+            "%8s%s" % ("", arg) for arg in pwndbg.arguments.format_args(instruction=instr)
+        )
 
         # If this instruction deserves a down arrow to indicate a taken branch
         if instr.split == SplitType.BRANCH_TAKEN:
