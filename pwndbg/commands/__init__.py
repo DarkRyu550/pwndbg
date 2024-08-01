@@ -702,7 +702,6 @@ def load_commands() -> None:
         import pwndbg.commands.cymbol
         import pwndbg.commands.distance
         import pwndbg.commands.dt
-        import pwndbg.commands.elf
         import pwndbg.commands.flags
         import pwndbg.commands.ghidra
         import pwndbg.commands.godbg
@@ -767,6 +766,7 @@ def load_commands() -> None:
     import pwndbg.commands.cyclic
     import pwndbg.commands.dev
     import pwndbg.commands.dumpargs
+    import pwndbg.commands.elf
     import pwndbg.commands.telescope
     import pwndbg.commands.vmmap
     import pwndbg.commands.windbg
