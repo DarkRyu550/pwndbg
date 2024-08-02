@@ -60,6 +60,12 @@ from pwndbg.dbg.lldb.repl.proc import ProcessDriver
 from pwndbg.dbg.lldb.repl.readline import PROMPT
 from pwndbg.dbg.lldb.repl.readline import disable_readline
 from pwndbg.dbg.lldb.repl.readline import enable_readline
+from pwndbg.lib.tips import color_tip
+from pwndbg.lib.tips import get_tip_of_the_day
+
+show_tip = pwndbg.config.add_param(
+    "show-tips", True, "whether to display the tip of the day on startup"
+)
 
 # We only allow certain commands to be executed in LLDB mode. This list contains
 # tuples made up of the full name of the command and functions that check if a
@@ -133,6 +139,34 @@ class EventRelay(EventHandler):
         self.dbg._trigger_event(EventType.NEW_MODULE)
 
 
+def show_greeting() -> None:
+    """
+    Show the Pwndbg greeting, the same way the GDB version of Pwndbg would. This
+    one is considerably simpler than the GDB version, however, as we control the
+    lifetime of the program, we know exactly when the greeting needs to be shown,
+    so we don't bother with any of the lifetime checks.
+    """
+    num_pwndbg_cmds = sum(
+        1 for _ in filter(lambda c: not (c.shell or c.is_alias), pwndbg.commands.commands)
+    )
+    num_shell_cmds = sum(1 for _ in filter(lambda c: c.shell, pwndbg.commands.commands))
+    hint_lines = (
+        "loaded %i pwndbg commands and %i shell commands." % (num_pwndbg_cmds, num_shell_cmds),
+    )
+
+    for line in hint_lines:
+        print(message.prompt("pwndbg: ") + message.system(line))
+
+    if show_tip:
+        colored_tip = color_tip(get_tip_of_the_day())
+        print(
+            message.prompt("------- tip of the day (some of these don't work in LLDB yet!)")
+            + message.system(" (disable with %s)" % message.notice("set show-tips off"))
+            + message.prompt(" -------")
+        )
+        print(colored_tip)
+
+
 def run(startup: List[str] | None = None, debug: bool = False) -> None:
     """
     Runs the Pwndbg REPL under LLDB. Optionally enters the commands given in
@@ -164,6 +198,7 @@ def run(startup: List[str] | None = None, debug: bool = False) -> None:
 
     signal.signal(signal.SIGINT, handle_sigint)
 
+    show_greeting()
     while True:
         # Execute the prompt hook and ask for input.
         dbg._fire_prompt_hook()
