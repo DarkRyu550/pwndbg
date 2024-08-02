@@ -723,7 +723,6 @@ def load_commands() -> None:
         import pwndbg.commands.misc
         import pwndbg.commands.mmap
         import pwndbg.commands.mprotect
-        import pwndbg.commands.nearpc
         import pwndbg.commands.next
         import pwndbg.commands.onegadget
         import pwndbg.commands.p2p
@@ -767,6 +766,7 @@ def load_commands() -> None:
     import pwndbg.commands.flags
     import pwndbg.commands.hexdump
     import pwndbg.commands.leakfind
+    import pwndbg.commands.nearpc
     import pwndbg.commands.telescope
     import pwndbg.commands.vmmap
     import pwndbg.commands.windbg

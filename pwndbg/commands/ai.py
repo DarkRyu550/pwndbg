@@ -18,6 +18,7 @@ import gdb
 import pwndbg
 import pwndbg.color.message as M
 import pwndbg.commands
+import pwndbg.gdblib.nearpc
 import pwndbg.lib.strings
 from pwndbg import config
 from pwndbg.commands import CommandCategory
