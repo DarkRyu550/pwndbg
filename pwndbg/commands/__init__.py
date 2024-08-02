@@ -741,7 +741,6 @@ def load_commands() -> None:
         import pwndbg.commands.tips
         import pwndbg.commands.tls
         import pwndbg.commands.version
-        import pwndbg.commands.xinfo
         import pwndbg.commands.xor
 
     import pwndbg.commands.canary
@@ -770,3 +769,4 @@ def load_commands() -> None:
     import pwndbg.commands.valist
     import pwndbg.commands.vmmap
     import pwndbg.commands.windbg
+    import pwndbg.commands.xinfo
