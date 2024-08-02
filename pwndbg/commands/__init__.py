@@ -135,6 +135,10 @@ class Command:
 
     def invoke(self, argument: str, from_tty: bool) -> None:
         """Invoke the command with an argument string"""
+        if not pwndbg.dbg.selected_inferior():
+            log.error("Pwndbg commands require a target binary to be selected")
+            return
+
         try:
             args, kwargs = self.split_args(argument)
         except SystemExit:
@@ -142,10 +146,6 @@ class Command:
             return
         except (TypeError, pwndbg.dbg_mod.Error):
             pwndbg.exception.handle(self.function.__name__)
-            return
-
-        if not pwndbg.dbg.selected_inferior():
-            log.error("Pwndbg commands require a target binary to be selected")
             return
 
         try:
