@@ -718,7 +718,6 @@ def load_commands() -> None:
         import pwndbg.commands.kconfig
         import pwndbg.commands.killthreads
         import pwndbg.commands.kversion
-        import pwndbg.commands.leakfind
         import pwndbg.commands.linkmap
         import pwndbg.commands.memoize
         import pwndbg.commands.misc
@@ -767,6 +766,7 @@ def load_commands() -> None:
     import pwndbg.commands.elf
     import pwndbg.commands.flags
     import pwndbg.commands.hexdump
+    import pwndbg.commands.leakfind
     import pwndbg.commands.telescope
     import pwndbg.commands.vmmap
     import pwndbg.commands.windbg
