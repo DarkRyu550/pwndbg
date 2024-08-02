@@ -997,6 +997,19 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         # LLDB will at most tell us if this is a SysV ABI process.
         return self.target.GetABIName().startswith("sysv")
 
+    def _resolve_fullpath(self, spec: lldb.SBFileSpec) -> str:
+        """
+        LLDB doesn't resolve symbolic links for us. Pwndbg expects this, so we
+        have to resolve these paths before we pass them forward.
+        """
+
+        # We should resolve symbolic links.
+        link = pwndbg.aglib.file.readlink(spec.fullpath)
+        if len(link) == 0:
+            return spec.fullpath
+
+        return os.path.normpath(f"{spec.dirname}/{link}")
+
     @override
     def module_section_locations(self) -> List[Tuple[int, int, str, str]]:
         result = []
@@ -1018,9 +1031,9 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
                     # This section is not loaded.
                     continue
 
-                result.append(
-                    (load, section.GetByteSize(), section.GetName(), module.GetFileSpec().fullpath)
-                )
+                fullpath = self._resolve_fullpath(module.GetFileSpec())
+
+                result.append((load, section.GetByteSize(), section.GetName(), fullpath))
 
         return result
 
@@ -1035,12 +1048,7 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         if spec is None:
             return None
 
-        # We should resolve symbolic links.
-        link = pwndbg.aglib.file.readlink(spec.fullpath)
-        if len(link) == 0:
-            return spec.fullpath
-
-        return os.path.normpath(f"{spec.dirname}/{link}")
+        return self._resolve_fullpath(spec)
 
     @override
     def main_module_entry(self) -> int | None:
