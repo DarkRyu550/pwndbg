@@ -734,7 +734,6 @@ def load_commands() -> None:
         import pwndbg.commands.rizin
         import pwndbg.commands.rop
         import pwndbg.commands.ropper
-        import pwndbg.commands.search
         import pwndbg.commands.segments
         import pwndbg.commands.shell
         import pwndbg.commands.sigreturn
@@ -767,6 +766,7 @@ def load_commands() -> None:
     import pwndbg.commands.pie
     import pwndbg.commands.probeleak
     import pwndbg.commands.retaddr
+    import pwndbg.commands.search
     import pwndbg.commands.telescope
     import pwndbg.commands.vmmap
     import pwndbg.commands.windbg
