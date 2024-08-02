@@ -736,7 +736,6 @@ def load_commands() -> None:
         import pwndbg.commands.ropper
         import pwndbg.commands.segments
         import pwndbg.commands.shell
-        import pwndbg.commands.sigreturn
         import pwndbg.commands.slab
         import pwndbg.commands.spray
         import pwndbg.commands.start
@@ -767,6 +766,7 @@ def load_commands() -> None:
     import pwndbg.commands.probeleak
     import pwndbg.commands.retaddr
     import pwndbg.commands.search
+    import pwndbg.commands.sigreturn
     import pwndbg.commands.telescope
     import pwndbg.commands.vmmap
     import pwndbg.commands.windbg
