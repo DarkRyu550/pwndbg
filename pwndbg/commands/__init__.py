@@ -728,7 +728,6 @@ def load_commands() -> None:
         import pwndbg.commands.pcplist
         import pwndbg.commands.peda
         import pwndbg.commands.plist
-        import pwndbg.commands.probeleak
         import pwndbg.commands.procinfo
         import pwndbg.commands.radare2
         import pwndbg.commands.reload
@@ -767,6 +766,7 @@ def load_commands() -> None:
     import pwndbg.commands.p2p
     import pwndbg.commands.patch
     import pwndbg.commands.pie
+    import pwndbg.commands.probeleak
     import pwndbg.commands.telescope
     import pwndbg.commands.vmmap
     import pwndbg.commands.windbg
