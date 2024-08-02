@@ -740,7 +740,6 @@ def load_commands() -> None:
         import pwndbg.commands.start
         import pwndbg.commands.tips
         import pwndbg.commands.tls
-        import pwndbg.commands.valist
         import pwndbg.commands.version
         import pwndbg.commands.xinfo
         import pwndbg.commands.xor
@@ -768,5 +767,6 @@ def load_commands() -> None:
     import pwndbg.commands.sigreturn
     import pwndbg.commands.spray
     import pwndbg.commands.telescope
+    import pwndbg.commands.valist
     import pwndbg.commands.vmmap
     import pwndbg.commands.windbg
