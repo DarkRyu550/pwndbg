@@ -708,7 +708,6 @@ def load_commands() -> None:
         import pwndbg.commands.got_tracking
         import pwndbg.commands.heap
         import pwndbg.commands.heap_tracking
-        import pwndbg.commands.hexdump
         import pwndbg.commands.ida
         import pwndbg.commands.ignore
         import pwndbg.commands.integration
@@ -767,6 +766,7 @@ def load_commands() -> None:
     import pwndbg.commands.dumpargs
     import pwndbg.commands.elf
     import pwndbg.commands.flags
+    import pwndbg.commands.hexdump
     import pwndbg.commands.telescope
     import pwndbg.commands.vmmap
     import pwndbg.commands.windbg
