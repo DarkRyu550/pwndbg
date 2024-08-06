@@ -87,11 +87,14 @@ class GDBFrame(pwndbg.dbg_mod.Frame):
 
     @override
     def evaluate_expression(self, expression: str) -> pwndbg.dbg_mod.Value:
-        with selection(self.inner, lambda: gdb.selected_frame(), lambda f: f.select()):
-            try:
-                value = parse_and_eval(expression, global_context=False)
-            except gdb.error as e:
-                raise pwndbg.dbg_mod.Error(e)
+        from pwndbg.gdblib.scheduler import lock_scheduler
+
+        with lock_scheduler():
+            with selection(self.inner, lambda: gdb.selected_frame(), lambda f: f.select()):
+                try:
+                    value = parse_and_eval(expression, global_context=False)
+                except gdb.error as e:
+                    raise pwndbg.dbg_mod.Error(e)
 
         return GDBValue(value)
 
