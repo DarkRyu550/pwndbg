@@ -4,10 +4,10 @@ import gdb
 import pytest
 
 import pwndbg
+import pwndbg.aglib.memory
+import pwndbg.aglib.typeinfo
 import pwndbg.gdblib.heap
-import pwndbg.gdblib.memory
 import pwndbg.gdblib.symbol
-import pwndbg.gdblib.typeinfo
 import tests
 from pwndbg.gdblib.heap.ptmalloc import SymbolUnresolvableError
 
@@ -30,7 +30,7 @@ def generate_expected_malloc_chunk_output(chunks):
     real_size = size & (0xFFFFFFFFFFFFFFF - 0b111)
     expected["allocated"] = [
         "Allocated chunk | PREV_INUSE",
-        f"Addr: {chunks['allocated'].address}",
+        f"Addr: {int(chunks['allocated'].address):#x}",
         f"Size: 0x{real_size:02x} (with flag bits: 0x{size:02x})",
         "",
     ]
@@ -47,7 +47,7 @@ def generate_expected_malloc_chunk_output(chunks):
     real_size = size & (0xFFFFFFFFFFFFFFF - 0b111)
     expected["tcache"] = [
         f"Free chunk ({'tcachebins' if pwndbg.gdblib.heap.current.has_tcache else 'fastbins'}) | PREV_INUSE",
-        f"Addr: {chunks['tcache'].address}",
+        f"Addr: {int(chunks['tcache'].address):#x}",
         f"Size: 0x{real_size:02x} (with flag bits: 0x{size:02x})",
         f"fd: 0x{int(chunks['tcache']['fd']):02x}",
         "",
@@ -65,7 +65,7 @@ def generate_expected_malloc_chunk_output(chunks):
     real_size = size & (0xFFFFFFFFFFFFFFF - 0b111)
     expected["fast"] = [
         "Free chunk (fastbins) | PREV_INUSE",
-        f"Addr: {chunks['fast'].address}",
+        f"Addr: {int(chunks['fast'].address):#x}",
         f"Size: 0x{real_size:02x} (with flag bits: 0x{size:02x})",
         f"fd: 0x{int(chunks['fast']['fd']):02x}",
         "",
@@ -83,7 +83,7 @@ def generate_expected_malloc_chunk_output(chunks):
     real_size = size & (0xFFFFFFFFFFFFFFF - 0b111)
     expected["small"] = [
         "Free chunk (smallbins) | PREV_INUSE",
-        f"Addr: {chunks['small'].address}",
+        f"Addr: {int(chunks['small'].address):#x}",
         f"Size: 0x{real_size:02x} (with flag bits: 0x{size:02x})",
         f"fd: 0x{int(chunks['small']['fd']):02x}",
         f"bk: 0x{int(chunks['small']['bk']):02x}",
@@ -102,7 +102,7 @@ def generate_expected_malloc_chunk_output(chunks):
     real_size = size & (0xFFFFFFFFFFFFFFF - 0b111)
     expected["large"] = [
         "Free chunk (largebins) | PREV_INUSE",
-        f"Addr: {chunks['large'].address}",
+        f"Addr: {int(chunks['large'].address):#x}",
         f"Size: 0x{real_size:02x} (with flag bits: 0x{size:02x})",
         f"fd: 0x{int(chunks['large']['fd']):02x}",
         f"bk: 0x{int(chunks['large']['bk']):02x}",
@@ -123,7 +123,7 @@ def generate_expected_malloc_chunk_output(chunks):
     real_size = size & (0xFFFFFFFFFFFFFFF - 0b111)
     expected["unsorted"] = [
         "Free chunk (unsortedbin) | PREV_INUSE",
-        f"Addr: {chunks['unsorted'].address}",
+        f"Addr: {int(chunks['unsorted'].address):#x}",
         f"Size: 0x{real_size:02x} (with flag bits: 0x{size:02x})",
         f"fd: 0x{int(chunks['unsorted']['fd']):02x}",
         f"bk: 0x{int(chunks['unsorted']['bk']):02x}",
@@ -142,8 +142,9 @@ def test_malloc_chunk_command(start_binary):
     results = {}
     chunk_types = ["allocated", "tcache", "fast", "small", "large", "unsorted"]
     for name in chunk_types:
-        chunks[name] = pwndbg.gdblib.memory.get_typed_pointer_value(
-            pwndbg.gdblib.heap.current.malloc_chunk, gdb.lookup_symbol(f"{name}_chunk")[0].value()
+        chunks[name] = pwndbg.aglib.memory.get_typed_pointer_value(
+            pwndbg.gdblib.heap.current.malloc_chunk,
+            int(gdb.lookup_symbol(f"{name}_chunk")[0].value()),
         )
         results[name] = gdb.execute(f"malloc_chunk {name}_chunk", to_string=True).splitlines()
 
@@ -164,8 +165,9 @@ def test_malloc_chunk_command(start_binary):
 
     # Test some non-main-arena chunks
     for name in chunk_types:
-        chunks[name] = pwndbg.gdblib.memory.get_typed_pointer_value(
-            pwndbg.gdblib.heap.current.malloc_chunk, gdb.lookup_symbol(f"{name}_chunk")[0].value()
+        chunks[name] = pwndbg.aglib.memory.get_typed_pointer_value(
+            pwndbg.gdblib.heap.current.malloc_chunk,
+            int(gdb.lookup_symbol(f"{name}_chunk")[0].value()),
         )
         results[name] = gdb.execute(f"malloc_chunk {name}_chunk", to_string=True).splitlines()
 
@@ -195,7 +197,7 @@ def test_malloc_chunk_command_heuristic(start_binary):
     chunk_types = ["allocated", "tcache", "fast", "small", "large", "unsorted"]
     for name in chunk_types:
         chunks[name] = pwndbg.gdblib.heap.current.malloc_chunk(
-            gdb.lookup_symbol(f"{name}_chunk")[0].value()
+            int(gdb.lookup_symbol(f"{name}_chunk")[0].value())
         )
         results[name] = gdb.execute(f"malloc_chunk {name}_chunk", to_string=True).splitlines()
 
@@ -217,7 +219,7 @@ def test_malloc_chunk_command_heuristic(start_binary):
     # Test some non-main-arena chunks
     for name in chunk_types:
         chunks[name] = pwndbg.gdblib.heap.current.malloc_chunk(
-            gdb.lookup_symbol(f"{name}_chunk")[0].value()
+            int(gdb.lookup_symbol(f"{name}_chunk")[0].value())
         )
         results[name] = gdb.execute(f"malloc_chunk {name}_chunk", to_string=True).splitlines()
 
@@ -241,12 +243,12 @@ def test_malloc_chunk_dump_command(start_binary):
     gdb.execute("break break_here")
     gdb.execute("continue")
 
-    chunk = pwndbg.gdblib.memory.get_typed_pointer_value(
-        pwndbg.gdblib.heap.current.malloc_chunk, gdb.lookup_symbol("test_chunk")[0].value()
+    chunk = pwndbg.aglib.memory.get_typed_pointer_value(
+        pwndbg.gdblib.heap.current.malloc_chunk, int(gdb.lookup_symbol("test_chunk")[0].value())
     )
     chunk_addr = chunk.address
 
-    malloc_chunk = gdb.execute(f"malloc_chunk {chunk_addr} -d", to_string=True)
+    malloc_chunk = gdb.execute(f"malloc_chunk {int(chunk_addr):#x} -d", to_string=True)
 
     size = int(
         chunk[("mchunk_size" if "mchunk_size" in (f.name for f in chunk.type.fields()) else "size")]
@@ -327,7 +329,7 @@ def test_main_arena_heuristic(start_binary):
     # Check the struct size is correct
     assert (
         pwndbg.gdblib.heap.current.main_arena._gdbValue.type.sizeof
-        == pwndbg.gdblib.typeinfo.lookup_types("struct malloc_state").sizeof
+        == pwndbg.aglib.typeinfo.lookup_types("struct malloc_state").sizeof
     )
     pwndbg.gdblib.heap.current = type(
         pwndbg.gdblib.heap.current
@@ -358,7 +360,7 @@ def test_mp_heuristic(start_binary):
     # Check the struct size is correct
     assert (
         pwndbg.gdblib.heap.current.mp.type.sizeof
-        == pwndbg.gdblib.typeinfo.lookup_types("struct malloc_par").sizeof
+        == pwndbg.aglib.typeinfo.lookup_types("struct malloc_par").sizeof
     )
     pwndbg.gdblib.heap.current = type(
         pwndbg.gdblib.heap.current
@@ -388,7 +390,7 @@ def test_thread_cache_heuristic(start_binary, is_multi_threaded):
     tcache_addr_via_debug_symbol = pwndbg.gdblib.symbol.static_linkage_symbol_address(
         "tcache"
     ) or pwndbg.gdblib.symbol.address("tcache")
-    thread_cache_addr_via_debug_symbol = pwndbg.gdblib.memory.u(tcache_addr_via_debug_symbol)
+    thread_cache_addr_via_debug_symbol = pwndbg.aglib.memory.u(tcache_addr_via_debug_symbol)
 
     # Check if we can get the address of `thread_cache` from debug symbols and the struct of `thread_cache` is correct
     assert pwndbg.gdblib.heap.current.thread_cache is not None
@@ -397,7 +399,7 @@ def test_thread_cache_heuristic(start_binary, is_multi_threaded):
     # Check the struct size is correct
     assert (
         pwndbg.gdblib.heap.current.thread_cache.type.sizeof
-        == pwndbg.gdblib.typeinfo.lookup_types("struct tcache_perthread_struct").sizeof
+        == pwndbg.aglib.typeinfo.lookup_types("struct tcache_perthread_struct").sizeof
     )
     pwndbg.gdblib.heap.current = type(
         pwndbg.gdblib.heap.current
@@ -435,7 +437,7 @@ def test_thread_arena_heuristic(start_binary, is_multi_threaded):
         "thread_arena"
     ) or pwndbg.gdblib.symbol.address("thread_arena")
     assert thread_arena_via_debug_symbol is not None
-    thread_arena_via_debug_symbol = pwndbg.gdblib.memory.u(thread_arena_via_debug_symbol)
+    thread_arena_via_debug_symbol = pwndbg.aglib.memory.u(thread_arena_via_debug_symbol)
     assert thread_arena_via_debug_symbol > 0
 
     # Check if we can get the address of `thread_arena` from debug symbols and the value of `thread_arena` is correct
@@ -478,7 +480,7 @@ def test_global_max_fast_heuristic(start_binary):
 
     # Check if we can return the default value even if we can NOT find the address of `global_max_fast`
     with mock_for_heuristic(["global_max_fast"]):
-        assert pwndbg.gdblib.heap.current.global_max_fast == pwndbg.gdblib.memory.u(
+        assert pwndbg.gdblib.heap.current.global_max_fast == pwndbg.aglib.memory.u(
             global_max_fast_addr_via_debug_symbol
         )
 

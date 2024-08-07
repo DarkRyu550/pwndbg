@@ -11,15 +11,15 @@ import gdb
 from tabulate import tabulate
 
 import pwndbg
+import pwndbg.aglib.memory
+import pwndbg.aglib.typeinfo
 import pwndbg.chain
 import pwndbg.color.context as C
 import pwndbg.color.memory as M
 import pwndbg.commands
 import pwndbg.gdblib.heap
-import pwndbg.gdblib.memory
 import pwndbg.gdblib.proc
 import pwndbg.gdblib.symbol
-import pwndbg.gdblib.typeinfo
 import pwndbg.gdblib.vmmap
 import pwndbg.glibc
 import pwndbg.lib.heap.helpers
@@ -49,7 +49,7 @@ def read_chunk(addr: int) -> Dict[str, int]:
         "mchunk_prev_size": "prev_size",
     }
     if isinstance(pwndbg.gdblib.heap.current, DebugSymsHeap):
-        val = pwndbg.gdblib.memory.get_typed_pointer_value(
+        val = pwndbg.aglib.memory.get_typed_pointer_value(
             pwndbg.gdblib.heap.current.malloc_chunk, addr
         )
     else:
@@ -868,11 +868,11 @@ def find_fake_fast(
     search_start = target_address - max_candidate_size + size_sz
     search_end = target_address
 
-    if pwndbg.gdblib.memory.peek(search_start) is None:
+    if pwndbg.aglib.memory.peek(search_start) is None:
         search_start = pwndbg.lib.memory.page_size_align(search_start)
         if (
             search_start > (search_end - size_field_width)
-            or pwndbg.gdblib.memory.peek(search_start) is None
+            or pwndbg.aglib.memory.peek(search_start) is None
         ):
             print(
                 message.warn(
@@ -899,7 +899,7 @@ def find_fake_fast(
         )
     )
 
-    search_region = pwndbg.gdblib.memory.read(search_start, search_end - search_start, partial=True)
+    search_region = pwndbg.aglib.memory.read(search_start, search_end - search_start, partial=True)
 
     print(C.banner("FAKE CHUNKS"))
     step = allocator.malloc_alignment if align else 1
@@ -1115,7 +1115,7 @@ def vis_heap_chunks(
             if printed % 2 == 0:
                 out += "\n0x%x" % cursor
 
-            data = pwndbg.gdblib.memory.read(cursor, ptr_size)
+            data = pwndbg.aglib.memory.read(cursor, ptr_size)
             cell = pwndbg.gdblib.arch.unpack(data)
             cell_hex = f"\t0x{cell:0{ptr_size * 2}x}"
 
@@ -1196,7 +1196,7 @@ def try_free(addr: str | int) -> None:
     # check hook
     free_hook = pwndbg.gdblib.symbol.address("__free_hook")
     if free_hook is not None:
-        if pwndbg.gdblib.memory.pvoid(free_hook) != 0:
+        if pwndbg.aglib.memory.pvoid(free_hook) != 0:
             print(message.success("__libc_free: will execute __free_hook"))
 
     # free(0) has no effect
@@ -1248,7 +1248,7 @@ def try_free(addr: str | int) -> None:
     # try to get the chunk
     try:
         chunk = read_chunk(addr)
-    except gdb.MemoryError:
+    except pwndbg.dbg_mod.Error:
         print(message.error(f"Can't read chunk at address 0x{addr:x}, memory error"))
         return
 
@@ -1312,11 +1312,11 @@ def try_free(addr: str | int) -> None:
         and "key" in allocator.tcache_entry.keys()
     ):
         tc_idx = (chunk_size_unmasked - chunk_minsize + malloc_alignment - 1) // malloc_alignment
-        if allocator.mp is not None and tc_idx < allocator.mp["tcache_bins"]:
+        if allocator.mp is not None and tc_idx < int(allocator.mp["tcache_bins"]):
             print(message.notice("Tcache checks"))
             e = addr + 2 * size_sz
             e += allocator.tcache_entry.keys().index("key") * ptr_size
-            e = pwndbg.gdblib.memory.pvoid(e)
+            e = pwndbg.aglib.memory.pvoid(e)
             tcache_addr = int(allocator.thread_cache.address)
             if e == tcache_addr:
                 # todo, actually do checks
@@ -1348,7 +1348,7 @@ def try_free(addr: str | int) -> None:
 
         try:
             next_chunk = read_chunk(addr + chunk_size_unmasked)
-        except gdb.MemoryError as e:
+        except pwndbg.dbg_mod.Error as e:
             print(
                 message.error(
                     f"Can't read next chunk at address 0x{chunk + chunk_size_unmasked:x}, memory error"
@@ -1379,7 +1379,7 @@ def try_free(addr: str | int) -> None:
         if fastbin_top_chunk != 0:
             try:
                 fastbin_top_chunk = read_chunk(fastbin_top_chunk)
-            except gdb.MemoryError:
+            except pwndbg.dbg_mod.Error:
                 print(
                     message.error(
                         f"Can't read top fastbin chunk at address 0x{fastbin_top_chunk:x}, memory error"
@@ -1435,7 +1435,7 @@ def try_free(addr: str | int) -> None:
         try:
             next_chunk = read_chunk(next_chunk_addr)
             next_chunk_size = chunksize(unsigned_size(next_chunk["size"]))
-        except (OverflowError, gdb.MemoryError):
+        except (OverflowError, pwndbg.dbg_mod.Error):
             print(message.error(f"Can't read next chunk at address 0x{next_chunk_addr:x}"))
             finalize(errors_found, returned_before_error)
             return
@@ -1465,7 +1465,7 @@ def try_free(addr: str | int) -> None:
             try:
                 prev_chunk = read_chunk(prev_chunk_addr)
                 prev_chunk_size = chunksize(unsigned_size(prev_chunk["size"]))
-            except (OverflowError, gdb.MemoryError):
+            except (OverflowError, pwndbg.dbg_mod.Error):
                 print(message.error(f"Can't read next chunk at address 0x{prev_chunk_addr:x}"))
                 finalize(errors_found, returned_before_error)
                 return
@@ -1488,7 +1488,7 @@ def try_free(addr: str | int) -> None:
             try:
                 next_next_chunk_addr = next_chunk_addr + next_chunk_size
                 next_next_chunk = read_chunk(next_next_chunk_addr)
-            except (OverflowError, gdb.MemoryError):
+            except (OverflowError, pwndbg.dbg_mod.Error):
                 print(message.error(f"Can't read next chunk at address 0x{next_next_chunk_addr:x}"))
                 finalize(errors_found, returned_before_error)
                 return
@@ -1517,14 +1517,14 @@ def try_free(addr: str | int) -> None:
                         )
                         print(message.error(err))
                         errors_found += 1
-                except (OverflowError, gdb.MemoryError):
+                except (OverflowError, pwndbg.dbg_mod.Error):
                     print(
                         message.error(
                             f"Can't read chunk at 0x{unsorted['fd']:x}, it is unsorted bin fd"
                         )
                     )
                     errors_found += 1
-            except (OverflowError, gdb.MemoryError):
+            except (OverflowError, pwndbg.dbg_mod.Error):
                 print(message.error(f"Can't read unsorted bin chunk at 0x{unsorted_addr:x}"))
                 errors_found += 1
 

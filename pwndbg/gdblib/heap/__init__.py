@@ -3,12 +3,9 @@ from __future__ import annotations
 from typing import Any
 from typing import Sequence
 
-import gdb
-
 import pwndbg
+import pwndbg.aglib.proc
 import pwndbg.gdblib.heap.heap
-import pwndbg.gdblib.proc
-import pwndbg.gdblib.symbol
 import pwndbg.lib.config
 from pwndbg.color import message
 from pwndbg.dbg import EventType
@@ -111,7 +108,7 @@ def resolve_heap(is_first_run: bool = False) -> None:
     global current
     if resolve_heap_via_heuristic == "force":
         current = pwndbg.gdblib.heap.ptmalloc.HeuristicHeap()
-        if not is_first_run and pwndbg.gdblib.proc.alive and current.libc_has_debug_syms():
+        if not is_first_run and pwndbg.aglib.proc.alive and current.libc_has_debug_syms():
             print(
                 message.warn(
                     "You are going to resolve the heap via heuristic even though you have libc debug symbols."
