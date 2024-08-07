@@ -438,11 +438,14 @@ class GDBProcess(pwndbg.dbg_mod.Process):
         return pwndbg.gdblib.symbol.get(address) or None
 
     @override
-    def symbol_address_from_name(self, name: str) -> int | None:
+    def symbol_address_from_name(self, name: str, prefer_static: bool = False) -> int | None:
         import pwndbg.gdblib.symbol
 
         try:
-            return pwndbg.gdblib.symbol.address(name) or None
+            static = None
+            if prefer_static:
+                static = pwndbg.gdblib.symbol.static_linkage_symbol_address(name)
+            return static or pwndbg.gdblib.symbol.address(name) or None
         except gdb.error:
             raise pwndbg.dbg_mod.Error()
 

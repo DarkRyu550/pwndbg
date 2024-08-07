@@ -911,7 +911,11 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         return ctx.symbol.name
 
     @override
-    def symbol_address_from_name(self, name: str) -> int | None:
+    def symbol_address_from_name(self, name: str, prefer_static: bool = False) -> int | None:
+        # LLDB doesn't have the concept of a static block like GDB does, we just
+        # don't do anything to select for static variables if we're asked to do
+        # so.
+
         symbols = self.target.FindSymbols(name)
 
         if symbols.GetSize() == 0:

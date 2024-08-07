@@ -324,9 +324,11 @@ class Process:
         """
         raise NotImplementedError()
 
-    def symbol_address_from_name(self, name: str) -> int | None:
+    def symbol_address_from_name(self, name: str, prefer_static: bool = False) -> int | None:
         """
-        Returns the address of a symbol, given its name.
+        Returns the address of a symbol, given its name. Optionally, the user
+        may specify that they want to prioritize symbols in the static block, if
+        supported by the debugger.
         """
         raise NotImplementedError()
 
