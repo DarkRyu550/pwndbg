@@ -225,13 +225,13 @@ def nearpc(
                 # know where it's going yet. It could be going to either memory
                 # managed by libc or memory managed by the program itself.
 
-                if not pwndbg.gdblib.heap.current.is_initialized():
+                if not pwndbg.aglib.heap.current.is_initialized():
                     # The libc heap hasn't been initialized yet. There's not a
                     # lot that we can say beyond this point.
                     continue
-                allocator = pwndbg.gdblib.heap.current
+                allocator = pwndbg.aglib.heap.current
 
-                heap = pwndbg.gdblib.heap.ptmalloc.Heap(address)
+                heap = pwndbg.aglib.heap.ptmalloc.Heap(address)
                 chunk = None
                 for ch in heap:
                     # Find the chunk in this heap the corresponds to the address

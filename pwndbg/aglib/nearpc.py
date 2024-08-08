@@ -33,7 +33,7 @@ cfg_prefix = ""
 
 if pwndbg.dbg.is_gdblib_available():
     # These haven't been ported yet.
-    import pwndbg.gdblib.heap
+    import pwndbg.aglib.heap
     import pwndbg.ida
 
     cfg_prefix = "aglib-"
@@ -247,18 +247,18 @@ def nearpc(
                 # know where it's going yet. It could be going to either memory
                 # managed by libc or memory managed by the program itself.
 
-                # The next checks depend on `pwndbg.gdblib.heap`.
-                # TODO: Port `pwndbg.gdblib.heap` to the Debugger-agnostic API and remove this.
+                # The next checks depend on `pwndbg.aglib.heap`.
+                # TODO: Port `pwndbg.aglib.heap` to the Debugger-agnostic API and remove this.
                 if not pwndbg.dbg.is_gdblib_available():
                     continue
 
-                if not pwndbg.gdblib.heap.current.is_initialized():
+                if not pwndbg.aglib.heap.current.is_initialized():
                     # The libc heap hasn't been initialized yet. There's not a
                     # lot that we can say beyond this point.
                     continue
-                allocator = pwndbg.gdblib.heap.current
+                allocator = pwndbg.aglib.heap.current
 
-                heap = pwndbg.gdblib.heap.ptmalloc.Heap(address)
+                heap = pwndbg.aglib.heap.ptmalloc.Heap(address)
                 chunk = None
                 for ch in heap:
                     # Find the chunk in this heap the corresponds to the address

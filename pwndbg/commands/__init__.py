@@ -25,13 +25,13 @@ import pwndbg.exception
 #
 # TODO: Replace these with uses of the Debugger API.
 if pwndbg.dbg.is_gdblib_available():
-    import pwndbg.gdblib.heap
+    import pwndbg.aglib.heap
     import pwndbg.gdblib.kernel
     import pwndbg.gdblib.regs
-    from pwndbg.gdblib.heap.ptmalloc import DebugSymsHeap
-    from pwndbg.gdblib.heap.ptmalloc import GlibcMemoryAllocator
-    from pwndbg.gdblib.heap.ptmalloc import HeuristicHeap
-    from pwndbg.gdblib.heap.ptmalloc import SymbolUnresolvableError
+    from pwndbg.aglib.heap.ptmalloc import DebugSymsHeap
+    from pwndbg.aglib.heap.ptmalloc import GlibcMemoryAllocator
+    from pwndbg.aglib.heap.ptmalloc import HeuristicHeap
+    from pwndbg.aglib.heap.ptmalloc import SymbolUnresolvableError
 
 log = logging.getLogger(__name__)
 
@@ -386,8 +386,8 @@ def OnlyWhenRunning(function: Callable[P, T]) -> Callable[P, Optional[T]]:
 def OnlyWithTcache(function: Callable[P, T]) -> Callable[P, Optional[T]]:
     @functools.wraps(function)
     def _OnlyWithTcache(*a: P.args, **kw: P.kwargs) -> Optional[T]:
-        assert isinstance(pwndbg.gdblib.heap.current, GlibcMemoryAllocator)
-        if pwndbg.gdblib.heap.current.has_tcache():
+        assert isinstance(pwndbg.aglib.heap.current, GlibcMemoryAllocator)
+        if pwndbg.aglib.heap.current.has_tcache():
             return function(*a, **kw)
         else:
             log.error(
@@ -401,7 +401,7 @@ def OnlyWithTcache(function: Callable[P, T]) -> Callable[P, Optional[T]]:
 def OnlyWhenHeapIsInitialized(function: Callable[P, T]) -> Callable[P, Optional[T]]:
     @functools.wraps(function)
     def _OnlyWhenHeapIsInitialized(*a: P.args, **kw: P.kwargs) -> Optional[T]:
-        if pwndbg.gdblib.heap.current is not None and pwndbg.gdblib.heap.current.is_initialized():
+        if pwndbg.aglib.heap.current is not None and pwndbg.aglib.heap.current.is_initialized():
             return function(*a, **kw)
         else:
             log.error(f"{function.__name__}: Heap is not initialized yet.")
@@ -439,7 +439,7 @@ def _try2run_heap_command(function: Callable[P, T], *a: P.args, **kw: P.kwargs) 
         pwndbg.exception.inform_verbose_and_debug()
     except Exception as err:
         e(f"{function.__name__}: An unknown error occurred when running this command.")
-        if isinstance(pwndbg.gdblib.heap.current, HeuristicHeap):
+        if isinstance(pwndbg.aglib.heap.current, HeuristicHeap):
             w(
                 "Maybe you can try to determine the libc symbols addresses manually, set them appropriately and re-run this command. For this, see the `heap_config` command output and set the `main_arena`, `mp_`, `global_max_fast`, `tcache` and `thread_arena` addresses."
             )
@@ -458,27 +458,27 @@ def OnlyWithResolvedHeapSyms(function: Callable[P, T]) -> Callable[P, T | None]:
         e = log.error
         w = log.warn
         if (
-            isinstance(pwndbg.gdblib.heap.current, HeuristicHeap)
+            isinstance(pwndbg.aglib.heap.current, HeuristicHeap)
             and pwndbg.config.resolve_heap_via_heuristic == "auto"
             and DebugSymsHeap().can_be_resolved()
         ):
             # In auto mode, we will try to use the debug symbols if possible
-            pwndbg.gdblib.heap.current = DebugSymsHeap()
+            pwndbg.aglib.heap.current = DebugSymsHeap()
         if (
-            pwndbg.gdblib.heap.current is not None
-            and isinstance(pwndbg.gdblib.heap.current, GlibcMemoryAllocator)
-            and pwndbg.gdblib.heap.current.can_be_resolved()
+            pwndbg.aglib.heap.current is not None
+            and isinstance(pwndbg.aglib.heap.current, GlibcMemoryAllocator)
+            and pwndbg.aglib.heap.current.can_be_resolved()
         ):
             return _try2run_heap_command(function, *a, **kw)
         else:
             if (
-                isinstance(pwndbg.gdblib.heap.current, DebugSymsHeap)
+                isinstance(pwndbg.aglib.heap.current, DebugSymsHeap)
                 and pwndbg.config.resolve_heap_via_heuristic == "auto"
             ):
                 # In auto mode, if the debug symbols are not enough, we will try to use the heuristic if possible
                 heuristic_heap = HeuristicHeap()
                 if heuristic_heap.can_be_resolved():
-                    pwndbg.gdblib.heap.current = heuristic_heap
+                    pwndbg.aglib.heap.current = heuristic_heap
                     w(
                         "pwndbg will try to resolve the heap symbols via heuristic now since we cannot resolve the heap via the debug symbols.\n"
                         "This might not work in all cases. Use `help set resolve-heap-via-heuristic` for more details.\n"
@@ -500,7 +500,7 @@ def OnlyWithResolvedHeapSyms(function: Callable[P, T]) -> Callable[P, T | None]:
                         "Please set the GLIBC version you think the target binary was compiled (using `set glibc <version>` command; e.g. 2.32) and re-run this command"
                     )
             elif (
-                isinstance(pwndbg.gdblib.heap.current, DebugSymsHeap)
+                isinstance(pwndbg.aglib.heap.current, DebugSymsHeap)
                 and pwndbg.config.resolve_heap_via_heuristic == "force"
             ):
                 e(

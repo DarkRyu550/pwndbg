@@ -95,7 +95,7 @@ module = [
     "pwndbg.gdblib.got",
     "pwndbg.gdblib.heap_tracking",
     "pwndbg.gdblib.stack",
-    "pwndbg.gdblib.heap.*",
+    "pwndbg.aglib.heap.*",
     "pwndbg.hexdump",
     "pwndbg.ui",
     "pwndbg.wrappers.*",

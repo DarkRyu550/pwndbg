@@ -14,6 +14,7 @@ def load_aglib():
     import pwndbg.aglib.disasm.x86
     import pwndbg.aglib.elf
     import pwndbg.aglib.file
+    import pwndbg.aglib.heap
     import pwndbg.aglib.memory
     import pwndbg.aglib.nearpc
     import pwndbg.aglib.proc

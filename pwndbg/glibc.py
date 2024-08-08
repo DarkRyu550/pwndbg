@@ -27,7 +27,7 @@ import pwndbg.search
 from pwndbg.color import message
 
 if pwndbg.dbg.is_gdblib_available():
-    import pwndbg.gdblib.heap
+    import pwndbg.aglib.heap
     import pwndbg.gdblib.symbol
 
 P = ParamSpec("P")
@@ -69,10 +69,10 @@ def get_version() -> Tuple[int, ...] | None:
 @pwndbg.lib.cache.cache_until("start", "objfile")
 def _get_version() -> Tuple[int, ...] | None:
     if pwndbg.dbg.is_gdblib_available():
-        from pwndbg.gdblib.heap.ptmalloc import GlibcMemoryAllocator
+        from pwndbg.aglib.heap.ptmalloc import GlibcMemoryAllocator
 
-        assert isinstance(pwndbg.gdblib.heap.current, GlibcMemoryAllocator)
-        if pwndbg.gdblib.heap.current.libc_has_debug_syms():
+        assert isinstance(pwndbg.aglib.heap.current, GlibcMemoryAllocator)
+        if pwndbg.aglib.heap.current.libc_has_debug_syms():
             addr = pwndbg.gdblib.symbol.address("__libc_version")
             if addr is not None:
                 ver = pwndbg.aglib.memory.string(addr)
