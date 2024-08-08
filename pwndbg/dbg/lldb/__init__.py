@@ -489,6 +489,32 @@ class LLDBValue(pwndbg.dbg_mod.Value):
     def __sub__(self, rhs: int) -> pwndbg.dbg_mod.Value:
         return self._self_add_sub_int(-rhs)
 
+    @override
+    def __getitem__(self, key: str | int) -> pwndbg.dbg_mod.Value:
+        if isinstance(key, str):
+            value = self.inner.GetChildMemberWithName(key)
+        elif isinstance(key, int):
+            c = self.inner.GetType().GetTypeClass()
+            if c == lldb.eTypeClassPointer:
+                # GetChildAtIndex() at most only lets us dereference the pointer
+                # at its original location, meaning that, to implement the
+                # *(ptr+idx) behavior outlined in the Debugger-agnostic API, we
+                # have to do the offset manually.
+                offset_gen = self + key
+                assert isinstance(offset_gen, LLDBValue)
+                offset: LLDBValue = offset_gen
+
+                value = offset.inner.Dereference()
+            else:
+                value = self.inner.GetChildAtIndex(key)
+
+        if not value.IsValid():
+            raise pwndbg.dbg_mod.Error(
+                f"cannot get value with key '{key}': {value.error.description}"
+            )
+
+        return LLDBValue(value, self.proc)
+
 
 class LLDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
     def __init__(self, pages: List[pwndbg.lib.memory.Page]):

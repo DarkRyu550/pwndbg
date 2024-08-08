@@ -656,6 +656,13 @@ class GDBType(pwndbg.dbg_mod.Type):
         ]
 
     @override
+    def has_field(self, name: str) -> bool:
+        # For GDB, we can do a little better than the default implementation, as
+        # it has a specific convenience function that checks for this condition
+        # exactly.
+        return gdb.types.has_field(self.inner, name)
+
+    @override
     def array(self, count: int) -> pwndbg.dbg_mod.Type:
         return GDBType(self.inner.array(count))
 
@@ -670,6 +677,10 @@ class GDBType(pwndbg.dbg_mod.Type):
     @override
     def target(self) -> pwndbg.dbg_mod.Type:
         return GDBType(self.inner.target())
+
+    @override
+    def keys(self) -> List[str]:
+        return list(self.inner.keys())
 
 
 class GDBValue(pwndbg.dbg_mod.Value):
@@ -743,6 +754,10 @@ class GDBValue(pwndbg.dbg_mod.Value):
             return GDBValue(self.inner - rhs)
         except gdb.error as e:
             raise pwndbg.dbg_mod.Error(e)
+
+    @override
+    def __getitem__(self, key: str | int) -> pwndbg.dbg_mod.Value:
+        return GDBValue(self.inner[key])
 
 
 class GDB(pwndbg.dbg_mod.Debugger):

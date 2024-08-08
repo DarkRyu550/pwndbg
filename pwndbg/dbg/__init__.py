@@ -482,6 +482,21 @@ class Type:
         """
         raise NotImplementedError()
 
+    def has_field(self, name: str) -> bool:
+        """
+        Whether this type has a field with the given name.
+        """
+        # This is a sensible default way to check for a field's existence.
+        #
+        # Implementations should, however, override this method if there's a
+        # debugger-specific check for this that might be faster or more accurate.
+        fields = self.fields()
+        if fields:
+            for field in fields:
+                if field.name == name:
+                    return True
+        return False
+
     def array(self, count: int) -> Type:
         """
         Return a type that corresponds to an array whole elements have this type.
@@ -506,6 +521,15 @@ class Type:
         Return the target of this reference type, if this is a reference type.
         """
         raise NotImplementedError()
+
+    def keys(self) -> List[str]:
+        """
+        Returns a list containing all the field names of this type.
+        """
+        # Like with `has_fields`, we provide a sensible default implementation
+        # based on `fields()`. Implementations are encouraged to override this
+        # if there is a better debugger-specific way to do this.
+        return [field.name for field in self.fields()]
 
 
 class Value:
@@ -597,6 +621,15 @@ class Value:
         """
         Subtract an integer from this value, if that makes sense. Throws an
         exception otherwise.
+        """
+        raise NotImplementedError()
+
+    def __getitem__(self, idx: int | str) -> Value:
+        """
+        Gets the value with the given name that belongs to this value. For
+        structure types, this is the field with the given name. For array types,
+        this is the field at the given index. For pointer types, this is the
+        value of `*(ptr+idx)`.
         """
         raise NotImplementedError()
 
