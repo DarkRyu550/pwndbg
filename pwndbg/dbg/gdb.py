@@ -429,6 +429,7 @@ class GDBProcess(pwndbg.dbg_mod.Process):
         v = GDBValue(gdb.Value(value))
         if type:
             v = v.cast(type)
+
         return v
 
     @override
@@ -646,7 +647,7 @@ class GDBType(pwndbg.dbg_mod.Type):
                 field.name,
                 GDBType(field.type),
                 field.parent_type,
-                field.enumval,
+                field.enumval if hasattr(field, "enumval") else 0,
                 field.artificial,
                 field.is_base_class,
                 field.bitsize,
