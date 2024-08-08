@@ -576,6 +576,11 @@ class GDBProcess(pwndbg.dbg_mod.Process):
 
         return None
 
+    @override
+    def is_dynamically_linked(self) -> bool:
+        out = gdb.execute("info dll", to_string=True)
+        return "No shared libraries loaded at this time." not in out
+
 
 class GDBCommand(gdb.Command):
     def __init__(

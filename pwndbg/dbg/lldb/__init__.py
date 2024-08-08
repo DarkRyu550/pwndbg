@@ -1064,6 +1064,14 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
             else None
         )
 
+    @override
+    def is_dynamically_linked(self) -> bool:
+        # This should more or less match the behavior of `info dll`, as descibed
+        # in the docstring for this method. We assume that targets that have no
+        # known modules - as is the case by default for QEMU - are statically
+        # linked, same as GDB 13.2.
+        return self.target.GetNumModules() > 1
+
 
 class LLDBCommand(pwndbg.dbg_mod.CommandHandle):
     def __init__(self, handler_name: str, command_name: str):

@@ -388,6 +388,26 @@ class Process:
         """
         raise NotImplementedError()
 
+    def is_dynamically_linked(self) -> bool:
+        """
+        Returns whether this process makes use of dynamically linked libraries.
+
+        # `"dynamically linked"`
+        What exactly it means to be "dynamically linked" here is a little
+        ill-defined. Ideally, this function should return true if the process
+        uses the default dynamic linker for the system, as that would better
+        reflect whether the process uses dynamic linking.
+
+        Currently, though, Pwndbg expects it to behave the same as a check for
+        the string "No shared libraries loaded at this time." in the output of
+        the `info dll` GDB command, which checks for the presence of other
+        modules in the address space of the process, rather than whether or not
+        the dynamic linker is used.
+
+        We should probably sort this out in the future.
+        """
+        raise NotImplementedError()
+
 
 class TypeCode(Enum):
     """
