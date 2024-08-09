@@ -16,22 +16,22 @@ from typing import TypeVar
 
 from typing_extensions import ParamSpec
 
+import pwndbg.aglib.heap
 import pwndbg.aglib.proc
 import pwndbg.aglib.qemu
 import pwndbg.exception
+from pwndbg.aglib.heap.ptmalloc import DebugSymsHeap
+from pwndbg.aglib.heap.ptmalloc import GlibcMemoryAllocator
+from pwndbg.aglib.heap.ptmalloc import HeuristicHeap
+from pwndbg.aglib.heap.ptmalloc import SymbolUnresolvableError
 
 # These aren't available under LLDB, and we can't get rid of them until all of
 # this functionality has been ported to the Debugger API.
 #
 # TODO: Replace these with uses of the Debugger API.
 if pwndbg.dbg.is_gdblib_available():
-    import pwndbg.aglib.heap
     import pwndbg.gdblib.kernel
     import pwndbg.gdblib.regs
-    from pwndbg.aglib.heap.ptmalloc import DebugSymsHeap
-    from pwndbg.aglib.heap.ptmalloc import GlibcMemoryAllocator
-    from pwndbg.aglib.heap.ptmalloc import HeuristicHeap
-    from pwndbg.aglib.heap.ptmalloc import SymbolUnresolvableError
 
 log = logging.getLogger(__name__)
 
@@ -410,12 +410,6 @@ def OnlyWhenHeapIsInitialized(function: Callable[P, T]) -> Callable[P, Optional[
     return _OnlyWhenHeapIsInitialized
 
 
-# TODO/FIXME: Move this elsewhere? Have better logic for that? Maybe caching?
-def _is_statically_linked() -> bool:
-    out = gdb.execute("info dll", to_string=True)
-    return "No shared libraries loaded at this time." in out
-
-
 def _try2run_heap_command(function: Callable[P, T], *a: P.args, **kw: P.kwargs) -> T | None:
     e = log.error
     w = log.warning
@@ -471,6 +465,7 @@ def OnlyWithResolvedHeapSyms(function: Callable[P, T]) -> Callable[P, T | None]:
         ):
             return _try2run_heap_command(function, *a, **kw)
         else:
+            static = not pwndbg.dbg.selected_inferior().is_dynamically_linked()
             if (
                 isinstance(pwndbg.aglib.heap.current, DebugSymsHeap)
                 and pwndbg.config.resolve_heap_via_heuristic == "auto"
@@ -484,7 +479,7 @@ def OnlyWithResolvedHeapSyms(function: Callable[P, T]) -> Callable[P, T | None]:
                         "This might not work in all cases. Use `help set resolve-heap-via-heuristic` for more details.\n"
                     )
                     return _try2run_heap_command(function, *a, **kw)
-                elif _is_statically_linked():
+                elif static:
                     e(
                         "Can't find GLIBC version required for this command to work since this is a statically linked binary"
                     )
@@ -508,7 +503,7 @@ def OnlyWithResolvedHeapSyms(function: Callable[P, T]) -> Callable[P, T | None]:
                 )
                 w("Use `set resolve-heap-via-heuristic auto` and re-run this command.")
             elif pwndbg.glibc.get_version() is None:
-                if _is_statically_linked():
+                if static:
                     e("Can't resolve the heap since the GLIBC version is not set.")
                     w(
                         "Please set the GLIBC version you think the target binary was compiled (using `set glibc <version>` command; e.g. 2.32) and re-run this command."
