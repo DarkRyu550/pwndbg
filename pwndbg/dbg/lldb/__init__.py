@@ -948,22 +948,109 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
 
         return ctx.symbol.name
 
+    def _resolve_tls_symbol(self, sym: lldb.SBSymbol) -> int | None:
+        """
+        Attemps to resolve the address of a symbol stored in TLS.
+        """
+        # LLDB doesn't handle symbols marked with STT_TLS at all[1], which
+        # means that not only will they not have a type, they will also
+        # give completely wrong results for GetStartAddress(), meaning we
+        # can't use any of the mechanisms in LLDB to figure out where a TLS
+        # symbol is located.
+        #
+        # Here, we try to resolve any symbols that don't have a type as TLS
+        # symbols, and, if we're successful, we return what we got. This is
+        # far from reliable, but it's the best we've got until LLDB gives us
+        # a proper way to handle these symbols.
+        #
+        # Additionally, this is a Linux+Glibc+x86_64-only workaround, for
+        # now. We might need to expand it to other systems as time goes on.
+        # We'll see. We should also consider parsing the symbols in the ELF
+        # file associated with the module LLDB found the symbol in, to check
+        # for whether this is a TLS symbol.
+        #
+        # I wish we didn't have to do this at all, but `pwndbg.aglib.heap`
+        # needs TLS symbols to work and I want at least _some_ level of support
+        # for it in LLDB :(
+        #
+        # [1]: https://github.com/llvm/llvm-project/blob/86cf67ffc1ee62c65bef313bf58ae70f74afb7c1/lldb/source/Plugins/ObjectFile/ELF/ObjectFileELF.cpp#L2140
+
+        if not self.is_linux():
+            print(
+                f"warning: symbol '{sym.GetName()}' might be a TLS symbol, but Pwndbg only knows how to resolve those in x86-64 GNU/Linux"
+            )
+            return None
+
+        if not self.arch().arch() == "x86-64":
+            print(
+                f"warning: symbol '{sym.GetName()}' might be a TLS symbol, but Pwndbg only knows how to resolve those in x86-64 GNU/Linux"
+            )
+            return None
+
+        import pwndbg.aglib.tls
+
+        tls_base = (
+            pwndbg.aglib.tls.find_address_with_register()
+            or pwndbg.aglib.tls.find_address_with_pthread_self()
+        )
+        if tls_base == 0:
+            print(
+                f"warning: symbol '{sym.GetName()}' might be a TLS symbol, but the TCB for the current thread could not be found"
+            )
+            return None
+
+        # `tls_base` should now point to a `tcbhead_t` structure, as defined in
+        # [1]. We want to scan through `dtv` until we hit the first element with
+        # which we can construct an address value of the form
+        # `dtv[i].pointer.val + sym.GetValue()` which is readable by us. The
+        # entries in `dtv` are defined in [2]. We scan only as many as
+        # `self.target.GetNumModules() + 1` entries.
+        #
+        # [1]: https://elixir.bootlin.com/glibc/glibc-2.40.9000/source/sysdeps/x86_64/nptl/tls.h#L70
+        # [2]: https://elixir.bootlin.com/glibc/glibc-2.40.9000/source/sysdeps/generic/dl-dtv.h#L33
+        offset = sym.GetValue()
+
+        for i in range(self.target.GetNumModules() + 1):
+            # This is the same as `tls_base->dtv[i].pointer.val + offset`.
+            candidate = (
+                pwndbg.aglib.memory.pvoid(pwndbg.aglib.memory.pvoid(tls_base + 8) + (16 * i))
+                + offset
+            )
+
+            import pwndbg.aglib.memory
+
+            if pwndbg.aglib.memory.peek(candidate):
+                # Take a guess that we hit the right TLS block and return what
+                # we got.
+                return candidate
+
+        print(
+            "warning: symbol '{sym.GetName()}' might be a TLS symbol, but it could not be resolved"
+        )
+        return None
+
     @override
     def symbol_address_from_name(self, name: str, prefer_static: bool = False) -> int | None:
         # LLDB doesn't have the concept of a static block like GDB does, we just
         # don't do anything to select for static variables if we're asked to do
         # so.
-
         symbols = self.target.FindSymbols(name)
 
         if symbols.GetSize() == 0:
             return None
 
-        ctx = symbols.GetContextAtIndex(0)
-        if not ctx.symbol.IsValid():
+        sym = symbols.GetContextAtIndex(0).symbol
+        if not sym.IsValid():
             return None
 
-        return ctx.symbol.GetValue()
+        if sym.GetType() == lldb.eSymbolTypeAny:
+            # Symbols with type eSymbolTypeAny may be TLS symbols, try to resolve
+            # this one and see if we can get a reasonable answer.
+            tls = self._resolve_tls_symbol(sym)
+            if tls:
+                return tls
+
+        return sym.GetStartAddress().GetLoadAddress(self.target)
 
     def types_with_name(self, name: str) -> Sequence[pwndbg.dbg_mod.Type]:
         types = self.target.FindTypes(name)
