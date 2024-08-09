@@ -67,7 +67,7 @@ if __name__ == "__main__":
     # Initialize the debugger, proper.
     import lldbinit
 
-    lldbinit.main(debugger, debug=debug)
+    lldbinit.main(debugger, lldb_version[0], lldb_version[1], debug=debug)
 
     # Run our REPL until the user decides to leave.
     if len(sys.argv) > 2:

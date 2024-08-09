@@ -24,6 +24,11 @@ from pwndbg.dbg import selection
 T = TypeVar("T")
 
 
+# We keep track of the LLDB version for some things we have to gate off behind
+# newer versions.
+LLDB_VERSION: Tuple[int, int] = None
+
+
 def rename_register(name: str, proc: LLDBProcess) -> str:
     """
     Some register names differ between Pwndbg/GDB and LLDB. This function takes
@@ -300,7 +305,12 @@ class LLDBType(pwndbg.dbg_mod.Type):
     @property
     @override
     def alignof(self) -> int:
-        return self.inner.GetByteAlign()
+        # For some reason, GetByteAlign is only available from LLDB 19.1 [1]. So
+        # if we're in an older version, we just assume it's naturally aligned.
+        if LLDB_VERSION[0] >= 20 or (LLDB_VERSION[0] == 19 and LLDB_VERSION[1] >= 1):
+            return self.inner.GetByteAlign()
+        else:
+            return self.sizeof
 
     @property
     @override
