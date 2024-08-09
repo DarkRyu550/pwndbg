@@ -174,7 +174,7 @@ class CStruct2GDB:
         if hasattr(field_type, "_length_"):  # f is a ctypes Array
             t = C2GDB_MAPPING[field_type._type_]
             return pwndbg.aglib.memory.get_typed_pointer_value(
-                t.array(field_type._length_ - 1), field_address
+                t.array(field_type._length_), field_address
             )
         return pwndbg.aglib.memory.get_typed_pointer_value(C2GDB_MAPPING[field_type], field_address)
 
@@ -204,7 +204,7 @@ class CStruct2GDB:
             bitpos = getattr(cls._c_struct, field_name).offset * 8
             if hasattr(field_type, "_length_"):  # f is a ctypes Array
                 t = C2GDB_MAPPING[field_type._type_]
-                _type = t.array(field_type._length_ - 1)
+                _type = t.array(field_type._length_)
             else:
                 _type = C2GDB_MAPPING[field_type]
             fake_gdb_fields.append(FakeGDBField(bitpos, field_name, _type, cls))

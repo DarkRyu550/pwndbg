@@ -499,7 +499,7 @@ class Type:
 
     def array(self, count: int) -> Type:
         """
-        Return a type that corresponds to an array whole elements have this type.
+        Return a type that corresponds to an array whose elements have this type.
         """
         raise NotImplementedError()
 

@@ -664,7 +664,9 @@ class GDBType(pwndbg.dbg_mod.Type):
 
     @override
     def array(self, count: int) -> pwndbg.dbg_mod.Type:
-        return GDBType(self.inner.array(count))
+        # GDB's .array function expects the inclusive upper bound of the array,
+        # not the number of elements.
+        return GDBType(self.inner.array(count - 1))
 
     @override
     def pointer(self) -> pwndbg.dbg_mod.Type:
