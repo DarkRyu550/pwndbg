@@ -358,7 +358,9 @@ class LLDBType(pwndbg.dbg_mod.Type):
     def target(self) -> pwndbg.dbg_mod.Type:
         t = self.inner.GetPointeeType()
         if not t.IsValid():
-            raise pwndbg.dbg_mod.Error("tried to get target type of non-pointer type")
+            t = self.inner.GetArrayElementType()
+        if not t.IsValid():
+            raise pwndbg.dbg_mod.Error("tried to get target type of non-pointer and non-array type")
 
         return LLDBType(t)
 

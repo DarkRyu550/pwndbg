@@ -63,10 +63,10 @@ else:
     TheType = TypeVar("TheType")
     TheValue = TypeVar("TheValue")
 
-# See https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/arena.c;h=37183cfb6ab5d0735cc82759626670aff3832cd0;hb=086ee48eaeaba871a2300daf85469671cc14c7e9#l30
-# and https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/malloc.c;h=f8e7250f70f6f26b0acb5901bcc4f6e39a8a52b2;hb=086ee48eaeaba871a2300daf85469671cc14c7e9#l869
-# 1 Mb (x86) or 64 Mb (x64)
-HEAP_MAX_SIZE = 1024 * 1024 if pwndbg.aglib.arch.ptrsize == 4 else 2 * 4 * 1024 * 1024 * 8
+# We defer the initialization of HEAP_MAX_SIZE, as it needs the value of
+# `pwndbg.aglib.arch.ptrsize`, which might not always be available at this
+# point. See `heap_for_ptr`.
+HEAP_MAX_SIZE: int = None
 
 NBINS = 128
 BINMAPSIZE = 4
@@ -170,6 +170,13 @@ def heap_for_ptr(ptr: int) -> int:
     struct, the pointer must point inside a heap which does not belong to
     the main arena.
     """
+    # See https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/arena.c;h=37183cfb6ab5d0735cc82759626670aff3832cd0;hb=086ee48eaeaba871a2300daf85469671cc14c7e9#l30
+    # and https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/malloc.c;h=f8e7250f70f6f26b0acb5901bcc4f6e39a8a52b2;hb=086ee48eaeaba871a2300daf85469671cc14c7e9#l869
+    # 1 Mb (x86) or 64 Mb (x64)
+    global HEAP_MAX_SIZE
+    if HEAP_MAX_SIZE is None:
+        HEAP_MAX_SIZE = 1024 * 1024 if pwndbg.aglib.arch.ptrsize == 4 else 2 * 4 * 1024 * 1024 * 8
+
     return ptr & ~(HEAP_MAX_SIZE - 1)
 
 

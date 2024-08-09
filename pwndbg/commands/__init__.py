@@ -700,7 +700,6 @@ def load_commands() -> None:
         import pwndbg.commands.godbg
         import pwndbg.commands.got
         import pwndbg.commands.got_tracking
-        import pwndbg.commands.heap
         import pwndbg.commands.heap_tracking
         import pwndbg.commands.ida
         import pwndbg.commands.ignore
@@ -748,6 +747,7 @@ def load_commands() -> None:
     import pwndbg.commands.dumpargs
     import pwndbg.commands.elf
     import pwndbg.commands.flags
+    import pwndbg.commands.heap
     import pwndbg.commands.hexdump
     import pwndbg.commands.leakfind
     import pwndbg.commands.nearpc

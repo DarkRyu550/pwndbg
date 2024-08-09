@@ -12,6 +12,9 @@ module_name = "pwndbg.commands"
 module = MagicMock(__name__=module_name, load_commands=lambda: None)
 sys.modules[module_name] = module
 
+# Load the mock for the `pwndbg.dbg` object.
+import mocks.dbg
+
 # Load the mocks for the `gdb` and `gdblib` modules
 import mocks.gdb
 import mocks.gdblib  # noqa: F401

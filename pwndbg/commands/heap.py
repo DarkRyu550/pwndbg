@@ -7,20 +7,18 @@ from typing import Dict
 from typing import List
 from typing import Set
 
-import gdb
 from tabulate import tabulate
 
 import pwndbg
 import pwndbg.aglib.heap
 import pwndbg.aglib.memory
+import pwndbg.aglib.proc
 import pwndbg.aglib.typeinfo
+import pwndbg.aglib.vmmap
 import pwndbg.chain
 import pwndbg.color.context as C
 import pwndbg.color.memory as M
 import pwndbg.commands
-import pwndbg.gdblib.proc
-import pwndbg.gdblib.symbol
-import pwndbg.gdblib.vmmap
 import pwndbg.glibc
 import pwndbg.lib.heap.helpers
 from pwndbg.aglib.heap import heap_chain_limit
@@ -139,7 +137,7 @@ def format_bin(bins: Bins, verbose: bool = False, offset: int | None = None) -> 
 
 def print_no_arena_found_error(tid=None) -> None:
     if tid is None:
-        tid = pwndbg.gdblib.proc.thread_id
+        tid = pwndbg.aglib.proc.thread_id
     print(
         message.notice(
             f"No arena found for thread {message.hint(tid)} (the thread hasn't performed any allocations)."
@@ -149,7 +147,7 @@ def print_no_arena_found_error(tid=None) -> None:
 
 def print_no_tcache_bins_found_error(tid: int | None = None) -> None:
     if tid is None:
-        tid = pwndbg.gdblib.proc.thread_id
+        tid = pwndbg.aglib.proc.thread_id
     print(
         message.notice(
             f"No tcache bins found for thread {message.hint(tid)} (the thread hasn't performed any allocations)."
@@ -282,7 +280,7 @@ def arena(addr: int | None = None) -> None:
         arena = Arena(addr)
     else:
         arena = allocator.thread_arena
-        tid = pwndbg.gdblib.proc.thread_id
+        tid = pwndbg.aglib.proc.thread_id
         # arena might be None if the current thread doesn't allocate the arena
         if arena is None:
             print_no_arena_found_error(tid)
@@ -337,7 +335,7 @@ def arenas() -> None:
             text_color(hex(first_heap.start)),
         ]
 
-        for mapping_data in str(pwndbg.gdblib.vmmap.find(first_heap.start)).split():
+        for mapping_data in str(pwndbg.aglib.vmmap.find(first_heap.start)).split():
             row.append(M.c.heap(mapping_data))
 
         table.append(row)
@@ -349,7 +347,7 @@ def arenas() -> None:
                 text_color(hex(extra_heap.start)),
             ]
 
-            for mapping_data in str(pwndbg.gdblib.vmmap.find(extra_heap.start)).split():
+            for mapping_data in str(pwndbg.aglib.vmmap.find(extra_heap.start)).split():
                 row.append(M.c.heap(mapping_data))
 
             table.append(row)
@@ -379,7 +377,7 @@ def tcache(addr: int | None = None) -> None:
 
     tcache = allocator.get_tcache(addr)
     # if the current thread doesn't allocate the arena, tcache will be NULL
-    tid = pwndbg.gdblib.proc.thread_id
+    tid = pwndbg.aglib.proc.thread_id
     if tcache:
         print(
             message.notice(
@@ -824,7 +822,10 @@ def find_fake_fast(
     size_sz = allocator.size_sz
     min_chunk_size = allocator.min_chunk_size
     global_max_fast = allocator.global_max_fast
-    size_field_width = gdb.lookup_type("unsigned int").sizeof if glibc_fastbin_bug else size_sz
+    size_types = pwndbg.dbg.selected_inferior().types_with_name("unsigned int")
+    size_field_width = (
+        (size_types[0].sizeof if len(size_types) > 0 else size_sz) if glibc_fastbin_bug else size_sz
+    )
 
     if global_max_fast is None:
         print(
@@ -1194,7 +1195,7 @@ def try_free(addr: str | int) -> None:
     addr = int(addr)
 
     # check hook
-    free_hook = pwndbg.gdblib.symbol.address("__free_hook")
+    free_hook = pwndbg.dbg.selected_inferior().symbol_address_from_name("__free_hook")
     if free_hook is not None:
         if pwndbg.aglib.memory.pvoid(free_hook) != 0:
             print(message.success("__libc_free: will execute __free_hook"))
