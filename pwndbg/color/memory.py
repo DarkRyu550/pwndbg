@@ -29,6 +29,7 @@ def sym_name(address: int) -> str | None:
     Retrieves the name of the symbol at the given address, if it exists
     """
     import pwndbg
+
     return pwndbg.dbg.selected_inferior().symbol_name_at_address(address)
 
 
@@ -38,6 +39,7 @@ def vmmap_find(address: int) -> pwndbg.lib.memory.Page | None:
     """
 
     import pwndbg
+
     vmmap = pwndbg.dbg.selected_inferior().vmmap()
     page = None
     for entry in vmmap.ranges():
@@ -45,7 +47,7 @@ def vmmap_find(address: int) -> pwndbg.lib.memory.Page | None:
             page = entry
 
     # The regular search failed. If we have access to `gdblib`, try the native
-    # search functionality it provides. 
+    # search functionality it provides.
     #
     # Currently, the `gdblib` version of the search differs from the regular
     # search in that it will explore and discover ranges, even when they are not
@@ -55,10 +57,11 @@ def vmmap_find(address: int) -> pwndbg.lib.memory.Page | None:
     # We might want to move that discovery behavior out of `gdblib` and into the
     # agnostic library in the future. If/when that happens, we should get rid of
     # this.
-    # 
+    #
     # TODO: Remove this if memory range discovery behavior is no longer exclusive to `gdblib.vmmap`.
     if not page and pwndbg.dbg.is_gdblib_available():
         import pwndbg.gdblib.vmmap
+
         page = pwndbg.gdblib.vmmap.find(address)
 
     return page
@@ -108,7 +111,9 @@ def attempt_colorized_symbol(address: int) -> str | None:
 # function. This is probably more lenient than we'd really like.
 #
 # TODO: Remove the exception for gdb.Value case from `pwndbg.color.memory.get`.
-def get(address: int | pwndbg.dbg_mod.Value | Any, text: str | None = None, prefix: str | None = None) -> str:
+def get(
+    address: int | pwndbg.dbg_mod.Value | Any, text: str | None = None, prefix: str | None = None
+) -> str:
     """
     Returns a colorized string representing the provided address.
 
