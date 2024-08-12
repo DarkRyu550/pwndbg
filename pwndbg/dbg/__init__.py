@@ -29,18 +29,21 @@ class Arch:
     The definition of an architecture.
     """
 
+    @property
     def endian(self) -> Literal["little", "big"]:
         """
         Wether code in this module is little or big.
         """
         raise NotImplementedError()
 
-    def arch(self) -> str:
+    @property
+    def name(self) -> str:
         """
         Name of the architecture.
         """
         raise NotImplementedError()
 
+    @property
     def ptrsize(self) -> int:
         """
         Length of the pointer in this module.

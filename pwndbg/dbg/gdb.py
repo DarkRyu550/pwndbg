@@ -25,18 +25,21 @@ T = TypeVar("T")
 
 class GDBLibArch(pwndbg.dbg_mod.Arch):
     @override
+    @property
     def endian(self) -> Literal["little", "big"]:
         import pwndbg.gdblib.arch
 
         return pwndbg.gdblib.arch.endian
 
     @override
-    def arch(self) -> str:
+    @property
+    def name(self) -> str:
         import pwndbg.gdblib.arch
 
         return pwndbg.gdblib.arch.name
 
     @override
+    @property
     def ptrsize(self) -> int:
         import pwndbg.gdblib.arch
 

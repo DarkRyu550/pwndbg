@@ -21,12 +21,17 @@ class LLDBArch(pwndbg.dbg_mod.Arch):
         self._ptrsize = ptrsize
 
     @override
+    @property
     def endian(self) -> Literal["little", "big"]:
         return self._endian
 
-    def arch(self) -> str:
+    @override
+    @property
+    def name(self) -> str:
         return self._name
 
+    @override
+    @property
     def ptrsize(self) -> int:
         return self._ptrsize
 
