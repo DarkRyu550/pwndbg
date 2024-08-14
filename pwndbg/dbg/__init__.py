@@ -92,6 +92,55 @@ class Arch:
         raise NotImplementedError()
 
 
+class StopPoint:
+    """
+    The handle to either an insalled breakpoint or watchpoint.
+    """
+
+    def remove(self) -> None:
+        """
+        Removes the breakpoint associated with this handle.
+        """
+        raise NotImplementedError()
+
+    def set_enabled(self, enabled: bool) -> None:
+        """
+        Enables or disables this breakpoint.
+        """
+        raise NotImplementedError()
+
+
+class BreakpointLocation:
+    """
+    This is the location specification for a breakpoint.
+    """
+
+    address: int
+
+    def __init__(self, address: int):
+        self.address = address
+
+
+class WatchpointLocation:
+    """
+    This is the location specification for a watchpoint.
+    """
+
+    address: int
+    size: int
+    watch_read: bool
+    watch_write: bool
+
+    def __init__(self, address: int, size: int, watch_read: bool, watch_write: bool):
+        self.address = address
+        self.size = size
+
+        assert watch_read or watch_write, "Watchpoints must watch at least one of reads or writes"
+
+        self.watch_read = watch_read
+        self.watch_write = watch_write
+
+
 class Registers:
     """
     A handle to the register values in a frame.
@@ -344,6 +393,44 @@ class Process:
     def arch(self) -> Arch:
         """
         The default architecture of this process.
+        """
+        raise NotImplementedError()
+
+    def break_at(
+        self,
+        location: BreakpointLocation | WatchpointLocation,
+        stop_handler: Callable[[StopPoint], bool] | None = None,
+        one_shot: bool = False,
+        internal: bool = False,
+    ) -> StopPoint:
+        """
+        Install a breakpoint or watchpoint at the given location.
+
+        The type of the location determines whether the newly created object
+        is a watchpoint or a breakpoint. `BreakpointLocation` locations yield
+        breakpoints, while `WatchpointLocation` locations yield watchpoints.
+
+        Aditionally, one may specify a stop handler function, to be run when
+        the breakpoint or whatchpoint is hit, and that determines whether
+        execution should stop. With a return value of `True` being interpreted
+        as a signal to stop, and a return value of `False` being interpreted as
+        a signal to continue execution. The extent of the actions that may be
+        taken during the stop handler is determined by the debugger.
+
+        Breakpoints and watchpoints marked as `one_shot` are removed after they
+        are first triggered. For the purposes of `one_shot`, a breakpoint or
+        watchpoint that has a stop handler is only considered to be triggered
+        when its stop handler returns `True`.
+
+        Marking a breakpoint or watchpoint as `internal` hints to the
+        implementation that the created breakpoint or watchpoint should not be
+        directly nameable by the user, and that it should not print any messages
+        upon being triggered. Implementations should try to honor this hint,
+        but they are not required to in case honoring it is either not possible
+        or comes at a significant impact to performance.
+
+        This function returns a handle to the newly created breakpoint or
+        watchpoint.
         """
         raise NotImplementedError()
 

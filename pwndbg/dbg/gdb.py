@@ -201,9 +201,131 @@ class GDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
         return self.pages
 
 
+# While this implementation allows breakpoints to be deleted, enabled and
+# disabled from inside the code in a stop handler, GDB does not[1]. Aditionally,
+# it behaves largely unpredictably when we try to do it. So, in order to allow
+# for these things, we defer the operations on the GDB side until we're sure
+# we can do them, and do some extra work on the Pwndbg side.
+#
+# [1]: https://sourceware.org/gdb/current/onlinedocs/gdb.html/Breakpoints-In-Python.html#Breakpoints-In-Python
+BPWP_DEFERRED_DELETE: Set[GDBStopPoint] = set()
+BPWP_DEFERRED_ENABLE: Set[GDBStopPoint] = set()
+BPWP_DEFERRED_DISABLE: Set[GDBStopPoint] = set()
+
+
+@pwndbg.gdblib.events.stop
+def _bpwp_process_deferred():
+    for to_enable in BPWP_DEFERRED_ENABLE:
+        to_enable.inner.enabled = True
+    for to_disable in BPWP_DEFERRED_DISABLE:
+        to_disable.inner.enabled = False
+    for to_delete in BPWP_DEFERRED_DELETE:
+        to_delete.inner.delete()
+    _bpwp_clear_deferred()
+
+
+@pwndbg.gdblib.events.start
+@pwndbg.gdblib.events.exit
+def _bpwp_clear_deferred():
+    for elem in BPWP_DEFERRED_DELETE:
+        elem._clear()
+    for elem in BPWP_DEFERRED_ENABLE:
+        elem._clear()
+    for elem in BPWP_DEFERRED_DISABLE:
+        elem._clear()
+
+    BPWP_DEFERRED_DELETE.clear()
+    BPWP_DEFERRED_ENABLE.clear()
+    BPWP_DEFERRED_DISABLE.clear()
+
+
+class BreakpointAdapter(gdb.Breakpoint):
+    stop_handler: Callable[[], bool]
+
+    @override
+    def stop(self) -> bool:
+        return self.stop_handler()
+
+
+class GDBStopPoint(pwndbg.dbg_mod.StopPoint):
+    inner: gdb.Breakpoint
+    proc: GDBProcess
+    inner_stop: Callable[[], bool] | None
+
+    def __init__(self, inner: gdb.Breakpoint, proc: GDBProcess):
+        self.inner = inner
+        self.proc = proc
+        self.inner_stop = None
+
+    def _stop(self):
+        """
+        This function implements the same protocol as the GDB stop() function
+        and may be slotted in place of the original function in case we need to
+        disable or delete a breakpoint or watchpoint during the handling of
+        a stop function.
+        """
+        if self not in BPWP_DEFERRED_DISABLE and self not in BPWP_DEFERRED_DELETE:
+            return self.inner_stop()
+        else:
+            return False
+
+    def _clear(self):
+        """
+        Removes the soft-disable aware handler and restores the original handler,
+        if one was installed.
+        """
+        if self.inner_stop is not None:
+            self.inner.stop = self.inner_stop
+            self.inner_stop = None
+
+    @override
+    def set_enabled(self, enabled: bool) -> None:
+        if self.proc.in_bpwp_stop_handler:
+            # We're doing this during a stop handle. Change the stop function
+            # in the breakpoint for the version that supports soft-disabling of
+            # the breakpoint and then soft-disable it.
+            self.inner_stop = self.inner.stop
+            self.inner.stop = self._stop
+
+            if enabled:
+                target = BPWP_DEFERRED_ENABLE
+                other = BPWP_DEFERRED_DISABLE
+            else:
+                target = BPWP_DEFERRED_DISABLE
+                other = BPWP_DEFERRED_ENABLE
+            if self in other:
+                other.remove(self)
+
+            target.add(self)
+        else:
+            # We're not in the middle of a stop handle, just enable or disable
+            # it directly in GDB.
+            self.inner.enabled = enabled
+
+    @override
+    def remove(self) -> None:
+        if self.proc.in_bpwp_stop_handler:
+            # Same as in `set_enabled`. We can't actually disable it right away,
+            # but we can stop the handle from running and prevent the breakpoint
+            # from stopping the program until it actually gets deleted.
+            self.inner_stop = self.inner.stop
+            self.inner.stop = self._stop
+            BPWP_DEFERRED_DELETE.add(self)
+        else:
+            self.inner.delete()
+
+
 class GDBProcess(pwndbg.dbg_mod.Process):
+    # Operations that change the internal state of GDB are generally not allowed
+    # during breakpoint stop handles. Because the Pwndbg Debugger-agnostic API
+    # generally does not have this limitation, we keep track of these handles,
+    # in order to properly block off or implement operations we support, but
+    # that GDB would misbehave doing.
+    in_bpwp_stop_handler: bool
+
     def __init__(self, inner: gdb.Inferior):
         self.inner = inner
+        self.in_bpwp_stop_handler = False
 
     @override
     def threads(self) -> List[pwndbg.dbg_mod.Thread]:
@@ -464,6 +586,61 @@ class GDBProcess(pwndbg.dbg_mod.Process):
     @override
     def arch(self) -> pwndbg.dbg_mod.Arch:
         return GDBLibArch()
+
+    @override
+    def break_at(
+        self,
+        location: pwndbg.dbg_mod.BreakpointLocation | pwndbg.dbg_mod.WatchpointLocation,
+        stop_handler: Callable[[pwndbg.dbg_mod.StopPoint], bool] | None = None,
+        one_shot: bool = False,
+        internal: bool = False,
+    ) -> pwndbg.dbg_mod.StopPoint:
+        # GDB does not support creating new breakpoints in the middle of a
+        # breakpoint stop handler[1]. Catch that case and throw an exception.
+        #
+        # [1]: https://sourceware.org/gdb/current/onlinedocs/gdb.html/Breakpoints-In-Python.html#Breakpoints-In-Python
+        if self.in_bpwp_stop_handler:
+            raise pwndbg.dbg_mod.Error(
+                "Creating new Breakpoints/Watchpoints while in a stop handler is not allowed in GDB"
+            )
+
+        if isinstance(location, pwndbg.dbg_mod.BreakpointLocation):
+            bp = BreakpointAdapter(
+                f"*{location.address:#x}",
+                gdb.BP_BREAKPOINT,
+                internal=internal,
+                temporary=one_shot,
+            )
+        elif isinstance(location, pwndbg.dbg_mod.WatchpointLocation):
+            if location.watch_read and location.watch_write:
+                c = gdb.WP_ACCESS
+            elif location.watch_write:
+                c = gdb.WP_WRITE
+            elif location.watch_read:
+                c = gdb.WP_READ
+
+            bp = BreakpointAdapter(
+                f"(char[{location.size}])*{location.address}",
+                gdb.BP_WATCHPOINT,
+                wp_class=c,
+                internal=internal,
+                temporary=one_shot,
+            )
+
+        if internal:
+            bp.silent = True
+
+        sp = GDBStopPoint(bp, self)
+
+        def handler():
+            self.in_bpwp_stop_handler = True
+            stop = stop_handler(sp)
+            self.in_bpwp_stop_handler = False
+            return stop
+
+        bp.stop_handler = handler
+
+        return sp
 
     @override
     def is_linux(self) -> bool:

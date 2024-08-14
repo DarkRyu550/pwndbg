@@ -546,6 +546,38 @@ class LLDBMemoryMap(pwndbg.dbg_mod.MemoryMap):
         return self.pages
 
 
+class LLDBStopPoint(pwndbg.dbg_mod.StopPoint):
+    inner: lldb.SBBreakpoint | lldb.SBWatchpoint
+    proc: LLDBProcess
+    stop_handler_name: str | None
+
+    def __init__(
+        self,
+        inner: lldb.SBBreakpoint | lldb.SBWatchpoint,
+        proc: LLDBProcess,
+        stop_handler_name: str | None,
+    ):
+        self.inner = inner
+        self.proc = proc
+        self.stop_handler_name = stop_handler_name
+
+    @override
+    def remove(self) -> None:
+        if isinstance(self.inner, lldb.SBBreakpoint):
+            self.proc.target.BreakpointDelete(self.inner.id)
+        elif isinstance(self.inner, lldb.SBWatchpoint):
+            self.proc.target.DeleteWatchpoint(self.inner.GetID())
+
+        # Remove the stop handler from the root module, as it's not needed
+        # anymore.
+        if self.stop_handler_name is not None:
+            del sys.modules[self.proc.dbg.module].__dict__[self.stop_handler_name]
+
+    @override
+    def set_enabled(self, enabled: bool) -> None:
+        self.inner.SetEnabled(enabled)
+
+
 class LLDBProcess(pwndbg.dbg_mod.Process):
     # Whether this process is based on `ProcessGDBRemote` (AKA: the `gdb-remote`
     # LLDB process plugin). This is used to selectively enable the functions
@@ -1120,6 +1152,74 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
                 name = "armcm"
 
         return LLDBArch(name, ptrsize0, endian)
+
+    @override
+    def break_at(
+        self,
+        location: pwndbg.dbg_mod.BreakpointLocation | pwndbg.dbg_mod.WatchpointLocation,
+        stop_handler: Callable[[pwndbg.dbg_mod.StopPoint], bool] | None = None,
+        one_shot: bool = False,
+        internal: bool = False,
+    ) -> pwndbg.dbg_mod.StopPoint:
+        if isinstance(location, pwndbg.dbg_mod.BreakpointLocation):
+            e = None
+            bp = self.target.BreakpointCreateByAddress(location.address)
+        elif isinstance(location, pwndbg.dbg_mod.WatchpointLocation):
+            e = lldb.SBError()
+            bp = self.target.WatchAddress(
+                location.address, location.size, location.watch_read, location.watch_write, e
+            )
+
+        if not bp.IsValid():
+            raise pwndbg.dbg_mod.Error(
+                f"could not create breakpoint/watchpoint: {e.description if e else 'unknown error'}"
+            )
+
+        # If we have a stop handler, pick a name for it.
+        #
+        # As with `add_command`, LLDB will not accept a direct handle to a
+        # class or function, and, instead, expects its name, in a way that it
+        # can access. In the same way as we do in `add_command`, we register
+        # our handler in the scope of the module we load in LLDB.
+        #
+        # Additionally, because the handler function is anonymous, we pick a
+        # randomized name for it.
+        stop_handler_name = None
+        if stop_handler is not None:
+            while True:
+                rand = round(random.random() * 0xFFFFFFFF) // 1
+                rand = f"{rand:08x}"
+                stop_handler_name = f"__{rand}_LLDB_BREAKPOINT_STOP_HANDLER"
+
+                if stop_handler_name not in sys.modules[self.dbg.module].__dict__:
+                    break
+
+        # Create the stop point handle.
+        sp = LLDBStopPoint(bp, self, stop_handler_name)
+
+        # And, now that we have the stop point handle, create and register the
+        # LLDB stop handler for the breakpoint, then register it. We can't
+        # create it earlier, since the handler takes the stop point handle as
+        # its first argument.
+        if stop_handler is not None:
+
+            def handler(
+                _frame: lldb.SBFrame,
+                _bp_loc: lldb.SBBreakpointLocation,
+                _struct: lldb.SBStructuredData,
+                _internal,
+            ) -> bool:
+                return stop_handler(sp)
+
+            sys.modules[self.dbg.module].__dict__[stop_handler_name] = handler
+
+            path = f"{self.dbg.module}.{stop_handler_name}"
+            if isinstance(bp, lldb.SBBreakpoint):
+                self.target.debugger.HandleCommand(f"breakpoint command add -F {path} {bp.id}")
+            elif isinstance(bp, lldb.SBWatchpoint):
+                self.target.debugger.HandleCommand(f"watchpoint command add -F {path} {bp.GetID()}")
+
+        return sp
 
     @override
     def is_linux(self) -> bool:
