@@ -866,6 +866,13 @@ class Debugger:
         """
         raise NotImplementedError()
 
+    def supports_breakpoint_creation_during_stop_handler(self) -> bool:
+        """
+        Whether breakpoint or watchpoint creation through `break_at` is
+        supported during breakpoint stop handlers.
+        """
+        raise NotImplementedError()
+
     # WARNING
     #
     # These are hacky parts of the API that were strictly necessary to bring up

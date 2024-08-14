@@ -1202,6 +1202,10 @@ class GDB(pwndbg.dbg_mod.Debugger):
             return False
 
     @override
+    def supports_breakpoint_creation_during_stop_handler(self) -> bool:
+        return False
+
+    @override
     def x86_disassembly_flavor(self) -> Literal["att", "intel"]:
         try:
             flavor = gdb.execute("show disassembly-flavor", to_string=True).lower().split('"')[1]

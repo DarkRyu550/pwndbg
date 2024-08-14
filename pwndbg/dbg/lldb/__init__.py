@@ -1567,6 +1567,10 @@ class LLDB(pwndbg.dbg_mod.Debugger):
         return self.debugger.SetCurrentPlatformSDKRoot(sysroot)
 
     @override
+    def supports_breakpoint_creation_during_stop_handler(self) -> bool:
+        return True
+
+    @override
     def x86_disassembly_flavor(self) -> Literal["att", "intel"]:
         # Example:
         # (lldb) settings show target.x86-disassembly-flavor
