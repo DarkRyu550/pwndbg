@@ -49,6 +49,7 @@ AARCH64_SINGLE_LOAD_INSTRUCTIONS: Dict[int, int | None] = {
     ARM64_INS_LDAR: None,
 }
 
+# None indicates that the write size depends on the source register
 AARCH64_SINGLE_STORE_INSTRUCTIONS: Dict[int, int | None] = {
     ARM64_INS_STRB: 1,
     ARM64_INS_STURB: 1,
@@ -177,6 +178,15 @@ class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
                 instruction.operands[0].str,
                 instruction.operands[1].str,
             )
+        elif instruction.id in AARCH64_SINGLE_STORE_INSTRUCTIONS:
+            self._common_store_annotator(
+                instruction,
+                emu,
+                instruction.operands[1].before_value,
+                instruction.operands[0].before_value,
+                AARCH64_SINGLE_STORE_INSTRUCTIONS[instruction.id],
+                instruction.operands[1].str,
+            )
         else:
             self.annotation_handlers.get(instruction.id, lambda *a: None)(instruction, emu)
 
@@ -187,9 +197,13 @@ class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
         # In ARM64, only branches have the conditional code in the instruction,
         # as opposed to ARM32 which allows most instructions to be conditional
         if instruction.id == ARM64_INS_B:
-            flags = super()._read_register_name(instruction, "cpsr", emu)
-            if flags is not None:
-                return resolve_condition(instruction.cs_insn.cc, flags)
+            # The B instruction can be made conditional by the condition codes
+            if instruction.cs_insn.cc in (ARM64_CC_INVALID, ARM64_CC_AL):
+                instruction.declare_conditional = False
+            else:
+                flags = super()._read_register_name(instruction, "cpsr", emu)
+                if flags is not None:
+                    return resolve_condition(instruction.cs_insn.cc, flags)
 
         elif instruction.id == ARM64_INS_CBNZ:
             op_val = instruction.operands[0].before_value
@@ -222,7 +236,7 @@ class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
         return super()._condition(instruction, emu)
 
     @override
-    def _resolve_target(self, instruction: PwndbgInstruction, emu: Emulator | None, call=False):
+    def _resolve_target(self, instruction: PwndbgInstruction, emu: Emulator | None):
         if not bool(instruction.groups_set & ALL_JUMP_GROUPS):
             return None
 
@@ -233,7 +247,7 @@ class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
             # If this is a ret WITHOUT an operand, it means we should read from the LR/x30 register
             return super()._read_register_name(instruction, "lr", emu)
 
-        return super()._resolve_target(instruction, emu, call)
+        return super()._resolve_target(instruction, emu)
 
     @override
     def _parse_memory(

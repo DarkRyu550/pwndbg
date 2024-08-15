@@ -113,6 +113,13 @@ MIPS_LOAD_INSTRUCTIONS = {
     MIPS_INS_LDPC: 8,
 }
 
+MIPS_STORE_INSTRUCTIONS = {
+    MIPS_INS_SB: 1,
+    MIPS_INS_SH: 2,
+    MIPS_INS_SW: 4,
+    MIPS_INS_SD: 8,
+}
+
 
 # This class enhances 32-bit, 64-bit, and micro MIPS
 class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
@@ -132,6 +139,15 @@ class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
                 read_size < 0,
                 pwndbg.gdblib.arch.ptrsize,
                 instruction.operands[0].str,
+                instruction.operands[1].str,
+            )
+        elif instruction.id in MIPS_STORE_INSTRUCTIONS:
+            self._common_store_annotator(
+                instruction,
+                emu,
+                instruction.operands[1].before_value,
+                instruction.operands[0].before_value,
+                MIPS_STORE_INSTRUCTIONS[instruction.id],
                 instruction.operands[1].str,
             )
         elif instruction.id in MIPS_SIMPLE_DESTINATION_INSTRUCTIONS:
@@ -163,13 +179,13 @@ class DisassemblyAssistant(pwndbg.gdblib.disasm.arch.DisassemblyAssistant):
         return InstructionCondition.TRUE if conditional else InstructionCondition.FALSE
 
     @override
-    def _resolve_target(self, instruction: PwndbgInstruction, emu: Emulator | None, call=False):
+    def _resolve_target(self, instruction: PwndbgInstruction, emu: Emulator | None):
         if bool(instruction.groups_set & FORWARD_JUMP_GROUP) and not bool(
             instruction.groups_set & BRANCH_LIKELY_INSTRUCTIONS
         ):
             instruction.causes_branch_delay = True
 
-        return super()._resolve_target(instruction, emu, call)
+        return super()._resolve_target(instruction, emu)
 
     @override
     def _parse_memory(

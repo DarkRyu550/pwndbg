@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import Callable
 from typing import Dict
+from typing import List
 from typing import Tuple
 
 import gdb
 from capstone import *  # noqa: F403
+from pwnlib.constants import linux
 
 import pwndbg.chain
 import pwndbg.color.context as C
@@ -300,7 +302,7 @@ class DisassemblyAssistant:
                     )
 
         # Execute the instruction
-        if jump_emu and None in jump_emu.single_step(check_instruction_valid=False):
+        if jump_emu and None in jump_emu.single_step():
             # This branch is taken if stepping the emulator failed
             jump_emu = None
             emu = None
@@ -521,6 +523,39 @@ class DisassemblyAssistant:
                 enhance_string_len=enhance_string_len,
             )
 
+    @staticmethod
+    def _syscall_name(number: int, arch: str) -> str | None:
+        """
+        Given a syscall number and architecture, returns the name of the syscall.
+        E.g. execve == 59 on x86-64
+        """
+        arch_module = {
+            "arm": linux.arm,
+            "armcm": linux.arm,
+            "i386": linux.i386,
+            "mips": linux.mips,
+            "x86-64": linux.amd64,
+            "aarch64": linux.aarch64,
+            "rv32": linux.riscv64,
+            "rv64": linux.riscv64,
+        }.get(arch)
+
+        if arch_module is None:
+            return None
+
+        prefix = "__NR_"
+
+        for k, v in arch_module.__dict__.items():
+            if v != number:
+                continue
+
+            if not k.startswith(prefix):
+                continue
+
+            return k[len(prefix) :].lower()
+
+        return None
+
     def _enhance_syscall(self, instruction: PwndbgInstruction, emu: Emulator) -> None:
         if CS_GRP_INT not in instruction.groups:
             return None
@@ -533,7 +568,7 @@ class DisassemblyAssistant:
         instruction.syscall = self._read_register_name(instruction, syscall_register, emu)
         if instruction.syscall is not None:
             instruction.syscall_name = (
-                pwndbg.constants.syscall(instruction.syscall, syscall_arch)
+                DisassemblyAssistant._syscall_name(instruction.syscall, syscall_arch)
                 or "<unk_%d>" % instruction.syscall
             )
 
@@ -592,7 +627,10 @@ class DisassemblyAssistant:
         # There are cases where the Unicorn emulator is incorrect - for example, delay slots in MIPS causing jumps to not resolve correctly
         # due to the way we single-step the emulator. We want our own manual checks to override the emulator
 
-        if instruction.condition == InstructionCondition.TRUE or instruction.is_unconditional_jump:
+        if not instruction.call_like and (
+            instruction.condition == InstructionCondition.TRUE or instruction.is_unconditional_jump
+        ):
+            # Don't allow call instructions - we want the actual "nexti" address
             # If condition is true, then this might be a conditional jump
             # There are some other instructions that run conditionally though - resolve_target returns None in those cases
             # Or, if this is a unconditional jump, we will try to resolve target
@@ -610,9 +648,9 @@ class DisassemblyAssistant:
         if next_addr is None:
             next_addr = instruction.address + instruction.size
 
-        # Determine the target of this address. This is the address that the instruction could change the program counter to.
-        # allowing call instructions
-        instruction.target = self._resolve_target(instruction, emu, call=True)
+        # Determine the target of this address.
+        # This is the address that the instruction could potentially change the program counter to, meaning that `stepi` would go to the target
+        instruction.target = self._resolve_target(instruction, emu)
 
         instruction.next = next_addr & pwndbg.gdblib.arch.ptrmask
 
@@ -632,19 +670,15 @@ class DisassemblyAssistant:
 
     # This is the default implementation.
     # Subclasses should override this for more accurate behavior/to catch more cases. See x86.py as example
-    def _resolve_target(self, instruction: PwndbgInstruction, emu: Emulator | None, call=False):
+    def _resolve_target(self, instruction: PwndbgInstruction, emu: Emulator | None):
         """
         Architecture-specific hook point for _enhance_next.
 
-        Returns the value of the instruction pointer assuming this instruction executes (and any conditional jumps are taken)
-
-        "call" specifies if we allow this to resolve call instruction targets
+        Returns the program counter target of this instruction.
+        Even in the case of conditional jumps, the potential target should be resolved.
         """
 
-        if instruction.call_like:
-            if not call:
-                return None
-        elif not bool(instruction.groups_set & FORWARD_JUMP_GROUP):
+        if not bool(instruction.groups_set & FORWARD_JUMP_GROUP):
             return None
 
         addr = None
@@ -873,6 +907,49 @@ class DisassemblyAssistant:
 
             if telescope_print is not None:
                 instruction.annotation += f" => {telescope_print}"
+
+    def _common_store_annotator(
+        self,
+        instruction: PwndbgInstruction,
+        emu: Emulator,
+        address: int | None,
+        value: int | None,
+        write_size: int | None,
+        address_str: str,
+    ) -> None:
+        """
+        This function annotates store functions - moving data from a register to memory.
+
+        The `value` is truncated to match the `write_size`, if `write_size` is not None.
+
+        The annotation will indicate if the instruction will segfault.
+
+        `write_size`: number of bytes of `value` that will be written
+        """
+
+        if address is None:
+            return
+
+        if not pwndbg.gdblib.memory.peek(address):
+            instruction.annotation = MessageColor.error(
+                f"<Cannot dereference [{MemoryColor.get(address)}]>"
+            )
+        elif value is not None:
+            # To make this annotation work with emulation disabled,
+            # we telescope the value that is going to be placed in the memory operand
+            TELESCOPE_DEPTH = max(0, int(pwndbg.config.disasm_telescope_depth))
+
+            if write_size is not None:
+                value &= (1 << (write_size * 8)) - 1
+
+            telescope_addresses = self._telescope(
+                value,
+                TELESCOPE_DEPTH,
+                instruction,
+                emu,
+            )
+
+            instruction.annotation = f"{address_str} => {self._telescope_format_list(telescope_addresses, TELESCOPE_DEPTH, emu)}"
 
 
 generic_assistant = DisassemblyAssistant(None)
