@@ -1185,6 +1185,9 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
 
             if any(has_xpsr):
                 name = "armcm"
+        elif name == "arm64":
+            # Apple uses a different name for AArch64 than we do.
+            name = "aarch64"
 
         return LLDBArch(name, ptrsize0, endian)
 
