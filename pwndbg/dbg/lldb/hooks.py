@@ -30,6 +30,16 @@ pwndbg.lib.cache.connect_clear_caching_events(
         "exit": (pwndbg.dbg.event_handler(EventType.EXIT),),
         "objfile": (pwndbg.dbg.event_handler(EventType.NEW_MODULE),),
         "start": (pwndbg.dbg.event_handler(EventType.START),),
+        "stop": (
+            pwndbg.dbg.event_handler(EventType.STOP),
+            pwndbg.dbg.event_handler(EventType.MEMORY_CHANGED),
+            pwndbg.dbg.event_handler(EventType.REGISTER_CHANGED),
+        ),
+        "cont": (
+            pwndbg.dbg.event_handler(EventType.CONTINUE),
+            pwndbg.dbg.event_handler(EventType.MEMORY_CHANGED),
+            pwndbg.dbg.event_handler(EventType.REGISTER_CHANGED),
+        ),
         "prompt": (),
         "forever": (),
     },
@@ -40,9 +50,11 @@ pwndbg.lib.cache.connect_clear_caching_events(
 # them as GDB can.
 #
 # TODO: Implement missing event types and re-enable the cache types that depend on them.
-pwndbg.lib.cache.IS_CACHING_DISABLED_FOR["stop"] = True
+#
+# FIXME: `stop` and `cont` have been enabled for performance reasons, but aren't 100% correct.
+pwndbg.lib.cache.IS_CACHING_DISABLED_FOR["stop"] = False
 pwndbg.lib.cache.IS_CACHING_DISABLED_FOR["thread"] = True
-pwndbg.lib.cache.IS_CACHING_DISABLED_FOR["cont"] = True
+pwndbg.lib.cache.IS_CACHING_DISABLED_FOR["cont"] = False
 
 should_show_context = False
 

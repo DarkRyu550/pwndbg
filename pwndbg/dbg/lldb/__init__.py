@@ -173,6 +173,10 @@ class LLDBFrame(pwndbg.dbg_mod.Frame):
                         int(self.regs().by_name(name)) == val
                     ), "wrote to a register, but read back different value. this is a bug"
 
+                    # We know this register got written to, we can trigger this
+                    # event.
+                    self.proc.dbg._trigger_event(pwndbg.dbg_mod.EventType.REGISTER_CHANGED)
+
                     return True
 
     @override
@@ -758,6 +762,8 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         if count < len(data) and not partial:
             raise pwndbg.dbg_mod.Error(f"could not write {len(data)} bytes: {e}")
 
+        # We know some memory got changed.
+        self.dbg._trigger_event(pwndbg.dbg_mod.EventType.MEMORY_CHANGED)
         return count
 
     @override
