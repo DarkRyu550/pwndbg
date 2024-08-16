@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import collections
 import os
 import sys
@@ -633,17 +634,32 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         regions = self.process.GetMemoryRegions()
 
         pages = []
+        ranges: List[int] = []
+        lens: List[int] = []
+
         for i in range(regions.GetSize()):
             region = lldb.SBMemoryRegionInfo()
             assert regions.GetMemoryRegionAtIndex(
                 i, region
             ), "invalid region despite being in bounds"
 
+            start = region.GetRegionBase()
+            size = region.GetRegionEnd() - start
+
             objfile = region.GetName()
             if objfile is None:
                 # LLDB will sometimes give us overlapping ranges with no name.
                 # For now, we ignore them, since GDB does not show them.
-                continue
+                ri = bisect.bisect_right(ranges, start)
+                lb = (ranges[ri - i], lens[ri - 1]) if ri > 0 else None
+                rb = (ranges[ri], lens[ri]) if ri < len(ranges) else None
+
+                lbm = lb[0] + lb[1] > start if lb is not None else False
+                rbm = start + size > rb[0] if rb is not None else False
+                if lbm or rbm:
+                    continue
+
+                objfile = "<unknown>"
 
             perms = 0
             if region.IsReadable():
@@ -656,6 +672,19 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
             # LLDB doesn't actually tell us the offset of a mapped file.
             offset = 0
 
+            # Add this range to our range map.
+            #
+            # Currently this is O(n) on the number of pages. It could be faster,
+            # if we had some sort of BTreeMap-like structure in Python, but we
+            # don't, and that would need an external dependency afaict, so we
+            # do this for now.
+            #
+            # TODO: Use a sorted map for overlapping memory range detection.
+            ri = bisect.bisect_left(ranges, start)
+            ranges.insert(ri, start)
+            lens.insert(ri, size)
+
+            # Add the page to our returned list.
             pages.append(
                 pwndbg.lib.memory.Page(
                     start=region.GetRegionBase(),
