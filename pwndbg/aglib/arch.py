@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+import pwnlib
+
 import pwndbg
 from pwndbg.lib.arch import Arch
 
@@ -24,6 +26,22 @@ ARCHS = (
     "riscv:rv64",
     "riscv",
 )
+
+
+# mapping between gdb and pwntools arch names
+pwnlib_archs_mapping = {
+    "x86-64": "amd64",
+    "i386": "i386",
+    "aarch64": "aarch64",
+    "mips": "mips",
+    "powerpc": "powerpc",
+    "sparc": "sparc",
+    "arm": "arm",
+    "iwmmxt": "arm",
+    "armcm": "thumb",
+    "rv32": "riscv32",
+    "rv64": "riscv64",
+}
 
 
 def read_thumb_bit() -> int | None:
@@ -50,11 +68,13 @@ def get_thumb_mode_string() -> Literal["arm", "thumb"] | None:
     return None if thumb_bit is None else "thumb" if thumb_bit == 1 else "arm"
 
 
-def __getattr__(name):
-    arch = pwndbg.dbg.selected_inferior().arch()
-    if name == "endian":
-        return arch.endian
-    elif name == "ptrsize":
-        return arch.ptrsize
-    else:
-        return getattr(Arch(arch.name, arch.ptrsize, arch.endian), name)
+arch: Arch = Arch("i386", 4, "little")
+
+
+def update() -> None:
+    a = pwndbg.dbg.selected_inferior().arch()
+
+    pwnlib.context.context.arch = pwnlib_archs_mapping[a.name]
+    pwnlib.context.context.bits = a.ptrsize * 8
+
+    arch.update(a.arch, a.ptrsize, a.endian)

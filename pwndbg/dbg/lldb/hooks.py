@@ -16,6 +16,7 @@ from pwndbg.dbg.lldb import LLDB
 @pwndbg.dbg.event_handler(EventType.STOP)
 def update_typeinfo() -> None:
     pwndbg.aglib.typeinfo.update()
+    pwndbg.aglib.arch_mod.update()
 
 
 @pwndbg.dbg.event_handler(EventType.STOP)

@@ -322,7 +322,7 @@ def OnlyWhenUserspace(function: Callable[P, T]) -> Callable[P, Optional[T]]:
 def OnlyWithArch(arch_names: List[str]) -> Callable[[Callable[P, T]], Callable[P, Optional[T]]]:
     """Decorates function to work only with the specified archictectures."""
     for arch in arch_names:
-        if arch not in pwndbg.aglib.arch.ARCHS:
+        if arch not in pwndbg.aglib.arch_mod.ARCHS:
             raise ValueError(
                 f"OnlyWithArch used with unsupported arch={arch}. Must be one of {', '.join(arch_names)}"
             )
