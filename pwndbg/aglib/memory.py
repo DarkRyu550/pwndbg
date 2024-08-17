@@ -96,13 +96,7 @@ def is_readable_address(address: int) -> bool:
         :class:`bool`: Whether the address is readable.
     """
     # We use vmmap to check before `peek()` because accessing memory for embedded targets might be slow and expensive.
-    found = None
-    for page in pwndbg.dbg.selected_inferior().vmmap().ranges():
-        if address in page:
-            found = page
-            break
-
-    return found is not None and peek(address) is not None
+    return pwndbg.aglib.vmmap.find(address) is not None and peek(address) is not None
 
 
 def poke(address: int) -> bool:

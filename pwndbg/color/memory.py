@@ -33,40 +33,6 @@ def sym_name(address: int) -> str | None:
     return pwndbg.dbg.selected_inferior().symbol_name_at_address(address)
 
 
-def vmmap_find(address: int) -> pwndbg.lib.memory.Page | None:
-    """
-    Searches for a page in the virtual memory map of the inferior.
-    """
-
-    import pwndbg
-
-    vmmap = pwndbg.dbg.selected_inferior().vmmap()
-    page = None
-    for entry in vmmap.ranges():
-        if address in entry:
-            page = entry
-
-    # The regular search failed. If we have access to `gdblib`, try the native
-    # search functionality it provides.
-    #
-    # Currently, the `gdblib` version of the search differs from the regular
-    # search in that it will explore and discover ranges, even when they are not
-    # listed in the virtual memory map. So, in order to preserve the original
-    # behavior of this function in all cases, this is currently necessary.
-    #
-    # We might want to move that discovery behavior out of `gdblib` and into the
-    # agnostic library in the future. If/when that happens, we should get rid of
-    # this.
-    #
-    # TODO: Remove this if memory range discovery behavior is no longer exclusive to `gdblib.vmmap`.
-    if not page and pwndbg.dbg.is_gdblib_available():
-        import pwndbg.gdblib.vmmap
-
-        page = pwndbg.gdblib.vmmap.find(address)
-
-    return page
-
-
 def get_address_and_symbol(address: int) -> str:
     """
     Convert and colorize address 0x7ffff7fcecd0 to string `0x7ffff7fcecd0 (_dl_fini)`
@@ -76,7 +42,7 @@ def get_address_and_symbol(address: int) -> str:
     if symbol:
         symbol = f"{address:#x} ({symbol})"
     else:
-        page = vmmap_find(address)
+        page = pwndbg.aglib.vmmap.find(address)
         if page and "[stack" in page.objfile:
             var = pwndbg.integration.provider.get_stack_var_name(address)
             if var:
@@ -99,7 +65,7 @@ def attempt_colorized_symbol(address: int) -> str | None:
     if symbol:
         return get(address, symbol)
     else:
-        page = vmmap_find(address)
+        page = pwndbg.aglib.vmmap.find(address)
         if page and "[stack" in page.objfile:
             var = pwndbg.integration.provider.get_stack_var_name(address)
             if var:
@@ -123,7 +89,7 @@ def get(
         prefix(str | None): Optional text to set at beginning in the return value string.
     """
     address = int(address)
-    page = vmmap_find(address)
+    page = pwndbg.aglib.vmmap.find(address)
 
     color: Callable[[str], str]
 
