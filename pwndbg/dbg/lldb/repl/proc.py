@@ -165,10 +165,6 @@ class ProcessDriver:
 
                     if new_state == lldb.eStateRunning or new_state == lldb.eStateStepping:
                         running = True
-                        # Trigger the continued event.
-                        if fire_events:
-                            self.eh.resumed()
-
                         # Start the I/O driver here if its start got deferred
                         # because of `only_if_started` being set.
                         if only_if_started and with_io:
@@ -202,6 +198,7 @@ class ProcessDriver:
         """
         assert self.has_process(), "called cont() on a driver with no process"
 
+        self.eh.resumed()
         self.process.Continue()
         self._run_until_next_stop()
 
@@ -211,16 +208,35 @@ class ProcessDriver:
         """
         assert self.has_process(), "called run_lldb_command() on a driver with no process"
 
-        self.process.GetTarget().GetDebugger().HandleCommand(command)
+        ret = lldb.SBCommandReturnObject()
+        self.process.GetTarget().GetDebugger().GetCommandInterpreter().HandleCommand(command, ret)
 
-        # We're banking here on HandleCommand resuming the process before it
-        # returns. It seems to be the case that it always does it, but I can't
-        # completely confirm it.
-        #
-        # If we get any reports of people having issues with commands not
-        # resuming when they absolutely should, one should try increasing the
-        # value of `first_timeout` here.
-        self._run_until_next_stop(first_timeout=0, only_if_started=True)
+        if ret.IsValid():
+            out = ret.GetOutput()
+            if len(out) > 0:
+                print(out)
+
+            # Only call _run_until_next_stop() if the command started the process.
+            s = ret.GetStatus()
+            if s == lldb.eReturnStatusFailed:
+                return
+            if s == lldb.eReturnStatusQuit:
+                return
+            if s == lldb.eReturnStatusSuccessFinishResult:
+                return
+            if s == lldb.eReturnStatusSuccessFinishNoResult:
+                return
+
+            # It's important to note that we can't trigger the resumed event
+            # now because the process might've already started, and LLDB
+            # will fail to do most of the operations that we need while the
+            # process is running. Ideally, we'd have a way to trigger the
+            # event right before the process is resumed, but as far as I know,
+            # there is no way to do that.
+            #
+            # TODO/FIXME: Find a way to trigger the continued event before the process is resumed in LLDB
+
+            self._run_until_next_stop()
 
     def launch(
         self, target: lldb.SBTarget, io: IODriver, env: List[str], args: List[str], working_dir: str
