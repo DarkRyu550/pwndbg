@@ -228,7 +228,7 @@ class module(ModuleType):
     def idt(self) -> int:
         if not pwndbg.aglib.qemu.is_qemu_kernel():
             return None
-        arch = pwndbg.dbg.selected_inferior().arch().arch()
+        arch = pwndbg.dbg.selected_inferior().arch().name
         if arch != "i386" and arch != "x86-64":
             return None
 
@@ -239,7 +239,7 @@ class module(ModuleType):
     def idt_limit(self) -> int:
         if not pwndbg.aglib.qemu.is_qemu_kernel():
             return None
-        arch = pwndbg.dbg.selected_inferior().arch().arch()
+        arch = pwndbg.dbg.selected_inferior().arch().name
         if arch != "i386" and arch != "x86-64":
             return None
 

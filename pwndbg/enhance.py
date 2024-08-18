@@ -26,9 +26,6 @@ import pwndbg.lib.cache
 from pwndbg import color
 from pwndbg.color.syntax_highlight import syntax_highlight
 
-if pwndbg.dbg.is_gdblib_available():
-    import pwndbg.ida
-
 
 def format_small_int(value: int) -> str:
     if value < 10:

@@ -19,7 +19,6 @@ from pwndbg.aglib.disasm.instruction import EnhancedOperand
 from pwndbg.aglib.disasm.instruction import InstructionCondition
 from pwndbg.aglib.disasm.instruction import PwndbgInstruction
 from pwndbg.aglib.disasm.instruction import boolean_to_instruction_condition
-from pwndbg.emu.emulator import Emulator
 
 # Emulator currently requires GDB, and we only use it here for type checking.
 if TYPE_CHECKING:

@@ -77,4 +77,4 @@ def update() -> None:
     pwnlib.context.context.arch = pwnlib_archs_mapping[a.name]
     pwnlib.context.context.bits = a.ptrsize * 8
 
-    arch.update(a.arch, a.ptrsize, a.endian)
+    arch.update(a.name, a.ptrsize, a.endian)

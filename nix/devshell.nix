@@ -40,8 +40,8 @@ in
       go
 
       pyEnv
-    ]) ++ pkgs.lib.optionals isLLDB (with llvmPkgs; [
-      lldb_16
+    ]) ++ pkgs.lib.optionals isLLDB (with pkgs; [
+      lldb_19
     ]);
     shellHook = ''
       export PWNDBG_VENV_PATH="PWNDBG_PLEASE_SKIP_VENV"

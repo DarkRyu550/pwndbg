@@ -3,6 +3,7 @@ from __future__ import annotations
 import bisect
 import collections
 import os
+import random
 import sys
 from typing import Any
 from typing import Callable
@@ -37,7 +38,7 @@ def rename_register(name: str, proc: LLDBProcess) -> str:
     LLDB name for the register.
     """
 
-    if name == "eflags" and proc.arch().arch() == "x86-64":
+    if name == "eflags" and proc.arch().name == "x86-64":
         return "rflags"
 
     # Nothing to change.
@@ -1048,7 +1049,7 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
             )
             return None
 
-        if not self.arch().arch() == "x86-64":
+        if not self.arch().name == "x86-64":
             print(
                 f"warning: symbol '{sym.GetName()}' might be a TLS symbol, but Pwndbg only knows how to resolve those in x86-64 GNU/Linux"
             )

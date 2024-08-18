@@ -26,6 +26,8 @@ import pwndbg.lib.functions
 from pwndbg.aglib.disasm.instruction import PwndbgInstruction
 from pwndbg.aglib.nearpc import c as N
 
+if pwndbg.dbg.is_gdblib_available():
+    import gdb
 
 
 def get(instruction: PwndbgInstruction) -> List[Tuple[pwndbg.lib.functions.Argument, int]]:
