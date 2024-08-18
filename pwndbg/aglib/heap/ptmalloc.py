@@ -320,7 +320,9 @@ class Chunk:
     def real_size(self) -> int | None:
         if self._real_size is None:
             try:
-                self._real_size = int(self._gdbValue[self.__match_renamed_field("size")]) & ~(SIZE_BITS)
+                self._real_size = int(self._gdbValue[self.__match_renamed_field("size")]) & ~(
+                    SIZE_BITS
+                )
             except pwndbg.dbg_mod.Error:
                 pass
 

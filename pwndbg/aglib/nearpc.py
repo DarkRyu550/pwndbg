@@ -6,14 +6,15 @@ from capstone import *  # noqa: F403
 
 import pwndbg
 import pwndbg.aglib.disasm
-import pwndbg.aglib.proc
 import pwndbg.aglib.regs
+import pwndbg.aglib.strings
 import pwndbg.aglib.vmmap
 import pwndbg.color
 import pwndbg.color.context as C
 import pwndbg.color.disasm as D
 import pwndbg.color.theme
 import pwndbg.commands.comments
+import pwndbg.integration
 import pwndbg.lib.config
 import pwndbg.lib.functions
 import pwndbg.ui
@@ -29,13 +30,7 @@ from pwndbg.color import message
 #
 # TODO: Port the rest of Pwndbg to this module and get rid of `pwndbg.gdblib.nearpc`.
 cfg_prefix = ""
-
-
 if pwndbg.dbg.is_gdblib_available():
-    # These haven't been ported yet.
-    import pwndbg.aglib.heap
-    import pwndbg.ida
-
     cfg_prefix = "aglib-"
 
 
@@ -52,13 +47,14 @@ c = ColorConfig(
         ColorParamSpec("prefix", "none", "color for nearpc command (prefix marker)"),
         ColorParamSpec("syscall-name", "red", "color for nearpc command (resolved syscall name)"),
         ColorParamSpec("argument", "bold", "color for nearpc command (target argument)"),
-        ColorParamSpec("ida-anterior", "bold", "color for nearpc command (IDA anterior)"),
+        ColorParamSpec(
+            "integration-comments", "bold", "color for nearpc command (integration comments)"
+        ),
         ColorParamSpec("branch-marker", "normal", "color for nearpc command (branch marker line)"),
     ],
 )
 
-# Yikes! `pwndbg.arguments` imports `c` from this module, so this import
-# triggers a cyclic import error unless we import it after we define `c`.
+# `pwndbg.arguments` imports `c` from this module.
 import pwndbg.arguments
 
 nearpc_branch_marker = pwndbg.color.theme.add_param(
@@ -79,6 +75,11 @@ nearpc_lines = pwndbg.config.add_param(
 )
 show_args = pwndbg.config.add_param(
     f"{cfg_prefix}nearpc-show-args", True, "whether to show call arguments below instruction"
+)
+show_comments = pwndbg.config.add_param(
+    f"{cfg_prefix}nearpc-integration-comments",
+    True,
+    "whether to show comments from integration provider",
 )
 show_opcode_bytes = pwndbg.config.add_param(
     f"{cfg_prefix}nearpc-num-opcode-bytes",
@@ -192,11 +193,6 @@ def nearpc(
         prefix = " %s" % (prefix_sign if show_prefix else " " * len(prefix_sign))
         prefix = c.prefix(prefix)
 
-        if pwndbg.dbg.is_gdblib_available():
-            pre = pwndbg.ida.Anterior(instr.address)
-            if pre:
-                result.append(c.ida_anterior(pre))
-
         # Colorize address and symbol if not highlighted
         # symbol is fetched from gdb and it can be e.g. '<main+8>'
         # In case there are duplicate instances of an instruction (tight loop),
@@ -246,11 +242,6 @@ def nearpc(
                 # At this point, we know the operation is legal, but we don't
                 # know where it's going yet. It could be going to either memory
                 # managed by libc or memory managed by the program itself.
-
-                # The next checks depend on `pwndbg.aglib.heap`.
-                # TODO: Port `pwndbg.aglib.heap` to the Debugger-agnostic API and remove this.
-                if not pwndbg.dbg.is_gdblib_available():
-                    continue
 
                 if not pwndbg.aglib.heap.current.is_initialized():
                     # The libc heap hasn't been initialized yet. There's not a
@@ -323,6 +314,15 @@ def nearpc(
         # mem_access was on this list, but not used due to the `and False` in the code that sets it above
         line = " ".join(filter(None, (prefix, address_str, opcodes, symbol, asm)))
 
+        if show_comments:
+            # Pull comments from integration if possible
+            result += [
+                " "
+                * (len(pwndbg.color.unstylize(line)) - len(pwndbg.color.unstylize(asm).lstrip()))
+                + c.integration_comments(x)
+                for x in pwndbg.integration.provider.get_comment_lines(instr.address)
+            ]
+
         # For Comment Function
         try:
             line += " " * 10 + C.comment(
@@ -335,9 +335,10 @@ def nearpc(
 
         # For call instructions, attempt to resolve the target and
         # determine the number of arguments.
-        result.extend(
-            "%8s%s" % ("", arg) for arg in pwndbg.arguments.format_args(instruction=instr)
-        )
+        if show_args:
+            result.extend(
+                "%8s%s" % ("", arg) for arg in pwndbg.arguments.format_args(instruction=instr)
+            )
 
         # If this instruction deserves a down arrow to indicate a taken branch
         if instr.split == SplitType.BRANCH_TAKEN:

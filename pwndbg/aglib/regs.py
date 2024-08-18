@@ -19,6 +19,7 @@ from typing import cast
 
 import pwndbg
 import pwndbg.aglib.arch
+import pwndbg.aglib.proc
 import pwndbg.aglib.qemu
 import pwndbg.aglib.remote
 import pwndbg.aglib.typeinfo
@@ -29,24 +30,29 @@ from pwndbg.lib.regs import RegisterSet
 from pwndbg.lib.regs import reg_sets
 
 
-def get_register(name: str) -> pwndbg.dbg_mod.Value:
-    frame = pwndbg.dbg.selected_frame()
+@pwndbg.lib.cache.cache_until("stop", "prompt")
+def regs_in_frame(frame: pwndbg.dbg_mod.Frame) -> pwndbg.dbg_mod.Registers:
+    return frame.regs()
+
+
+@pwndbg.aglib.proc.OnlyWhenRunning
+def get_register(
+    name: str, frame: pwndbg.dbg_mod.Frame | None = None
+) -> pwndbg.dbg_mod.Value | None:
     if frame is None:
-        return None
+        frame = pwndbg.dbg.selected_frame()
+    assert (
+        frame is not None
+    ), "pwndbg.dbg.selected_frame() should never return None when marked with @OnlyWhenRunning"
 
-    regs = frame.regs()
-    value = regs.by_name(name)
-    if value:
-        return value
-    return regs.by_name(name.upper())
+    regs = regs_in_frame(frame)
+
+    return regs.by_name(name) or regs.by_name(name.upper())
 
 
-def get_qemu_register(name: str) -> int:
-    if not pwndbg.aglib.qemu.is_qemu_kernel():
-        return None
-    if pwndbg.dbg.selected_frame() is None:
-        return None
-
+@pwndbg.aglib.proc.OnlyWhenQemuKernel
+@pwndbg.aglib.proc.OnlyWhenRunning
+def get_qemu_register(name: str) -> int | None:
     out = pwndbg.dbg.selected_inferior().send_monitor("info registers")
     match = re.search(rf'{name.split("_")[0]}=\s+([\da-fA-F]+)\s+([\da-fA-F]+)', out)
 
@@ -92,27 +98,28 @@ class module(ModuleType):
     last: Dict[str, int] = {}
 
     @pwndbg.lib.cache.cache_until("stop", "prompt")
-    def __getattr__(self, attr: str) -> int | None:
-        attr = attr.lstrip("$")
+    def read_reg(self, reg: str, frame: pwndbg.dbg_mod.Frame | None = None) -> int | None:
+        reg = reg.lstrip("$")
         try:
-            value = get_register(attr)
-            if value is None and attr.lower() == "xpsr":
-                value = get_register("xPSR")
+            value = get_register(reg, frame)
+            if value is None and reg.lower() == "xpsr":
+                value = get_register("xPSR", frame)
             if value is None:
                 return None
             size = pwndbg.aglib.typeinfo.unsigned.get(
                 value.type.sizeof, pwndbg.aglib.typeinfo.ulong
             )
-
-            int_value = int(value.cast(size))
-
-            if attr == "pc" and pwndbg.aglib.arch.name == "i8086":
+            value = value.cast(size)
+            if reg == "pc" and pwndbg.aglib.arch.name == "i8086":
                 if self.cs is None:
                     return None
-                int_value += self.cs * 16
-            return int_value & pwndbg.aglib.arch.ptrmask
+                value += self.cs * 16
+            return int(value) & pwndbg.aglib.arch.ptrmask
         except (ValueError, pwndbg.dbg_mod.Error):
             return None
+
+    def __getattr__(self, attr: str) -> int | None:
+        return self.read_reg(attr)
 
     def __setattr__(self, attr: str, val: Any) -> None:
         if attr in ("last", "previous"):
@@ -126,14 +133,7 @@ class module(ModuleType):
             print("Unknown register type: %r" % (item))
             return None
 
-        # e.g. if we're looking for register "$rax", turn it into "rax"
-        item = item.lstrip("$")
-        item = getattr(self, item.lower(), None)
-
-        if item is not None:
-            item &= pwndbg.aglib.arch.ptrmask
-
-        return item
+        return self.read_reg(item)
 
     def __contains__(self, reg: str) -> bool:
         regs = set(reg_sets[pwndbg.aglib.arch.name]) | {"pc", "sp"}
@@ -201,7 +201,7 @@ class module(ModuleType):
             elif isinstance(regset, dict):  # regs.flags
                 retval.extend(regset.keys())
             else:
-                retval.append(regset)  # type: ignore[arg-type]
+                retval.append(regset)
         return retval
 
     def fix(self, expression: str) -> str:
@@ -224,25 +224,17 @@ class module(ModuleType):
         return delta
 
     @property
+    @pwndbg.aglib.proc.OnlyWhenQemuKernel
+    @pwndbg.aglib.proc.OnlyWithArch(["i386", "x86-64"])
     @pwndbg.lib.cache.cache_until("stop")
     def idt(self) -> int:
-        if not pwndbg.aglib.qemu.is_qemu_kernel():
-            return None
-        arch = pwndbg.dbg.selected_inferior().arch().name
-        if arch != "i386" and arch != "x86-64":
-            return None
-
         return get_qemu_register("IDT")
 
     @property
+    @pwndbg.aglib.proc.OnlyWhenQemuKernel
+    @pwndbg.aglib.proc.OnlyWithArch(["i386", "x86-64"])
     @pwndbg.lib.cache.cache_until("stop")
     def idt_limit(self) -> int:
-        if not pwndbg.aglib.qemu.is_qemu_kernel():
-            return None
-        arch = pwndbg.dbg.selected_inferior().arch().name
-        if arch != "i386" and arch != "x86-64":
-            return None
-
         return get_qemu_register("IDT_LIMIT")
 
     @property
@@ -270,8 +262,6 @@ class module(ModuleType):
 
         # Use the lightweight process ID
         lwpid = pwndbg.dbg.selected_thread().ptid()
-        if lwpid is None:
-            return 0
 
         # Get the register
         ppvoid = ctypes.POINTER(ctypes.c_void_p)
@@ -301,7 +291,5 @@ def update_last() -> None:
     M: module = cast(module, sys.modules[__name__])
     M.previous = M.last
     M.last = {k: M[k] for k in M.common}
-
-    # TODO: Port `context` to the debugger-agnostic interfaces and uncomment this.
-    # if pwndbg.config.show_retaddr_reg:
-    #    M.last.update({k: M[k] for k in M.retaddr})
+    if pwndbg.config.show_retaddr_reg:
+        M.last.update({k: M[k] for k in M.retaddr})

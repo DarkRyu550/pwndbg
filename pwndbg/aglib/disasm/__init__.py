@@ -95,8 +95,7 @@ next_addresses_cache: Set[int] = set()
 @pwndbg.dbg.event_handler(EventType.STOP)
 def enhance_cache_listener() -> None:
     # Clear the register value cache to ensure we get the correct program counter value
-    # TODO: Change this back to .reg_read.cache.clear()!
-    pwndbg.aglib.regs.__getattr__.cache.clear()  # type: ignore[attr-defined]
+    pwndbg.aglib.regs.read_reg.cache.clear()  # type: ignore[attr-defined]
 
     if pwndbg.aglib.regs.pc not in next_addresses_cache:
         # Clear the enhanced instruction cache to ensure we don't use stale values
