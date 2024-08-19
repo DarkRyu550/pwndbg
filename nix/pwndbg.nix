@@ -5,6 +5,7 @@
   inputs ? null,
   isDev ? false,
   isLLDB ? false,
+  lldb ? pkgs.lldb_19,
 }:
 let
   binPath = pkgs.lib.makeBinPath (
@@ -14,6 +15,9 @@ let
     ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
       python3.pkgs.ropper # ref: https://github.com/pwndbg/pwndbg/blob/2023.07.17/pwndbg/commands/ropper.py#L30
       python3.pkgs.ropgadget # ref: https://github.com/pwndbg/pwndbg/blob/2023.07.17/pwndbg/commands/rop.py#L34
+    ]
+    ++ pkgs.lib.optionals isLLDB [
+      python3.pkgs.gnureadline
     ]
   );
 
@@ -43,29 +47,45 @@ let
     src = pkgs.lib.sourceByRegex inputs.pwndbg ([
       "pwndbg"
       "pwndbg/.*"
-      "gdbinit.py"
-    ] ++ pkgs.lib.optionals isLLDB [
+    ] ++ (if isLLDB then [
       "lldbinit.py"
       "pwndbg-lldb.py"
-    ]);
+    ] else [
+      "gdbinit.py"
+    ]));
 
     nativeBuildInputs = [ pkgs.makeWrapper ];
 
-    installPhase = ''
+    installPhase = let
+      fix_init_script = { target, line }: ''
+        # Build self-contained init script for lazy loading from vanilla gdb
+        # I purposely use insert() so I can re-import during development without having to restart gdb
+        sed "${line} i import sys, os\n\
+        sys.path.insert(0, '${pyEnv}/${pyEnv.sitePackages}')\n\
+        sys.path.insert(0, '$out/share/pwndbg/')\n\
+        os.environ['PATH'] += ':${binPath}'\n" -i ${target}
+      '';
+    in (if isLLDB then ''
+      mkdir -p $out/share/pwndbg
+      mkdir -p $out/bin
+
+      cp -r lldbinit.py pwndbg $out/share/pwndbg
+      cp pwndbg-lldb.py $out/bin/pwndbg
+      ${fix_init_script { target = "$out/bin/pwndbg"; line = "3"; } }
+
+      touch $out/share/pwndbg/.skip-venv
+      wrapProgram $out/bin/pwndbg \
+        --prefix PATH : ${ pkgs.lib.makeBinPath [ lldb ] }
+    '' else ''
       mkdir -p $out/share/pwndbg
 
       cp -r gdbinit.py pwndbg $out/share/pwndbg
-      # Build self-contained init script for lazy loading from vanilla gdb
-      # I purposely use insert() so I can re-import during development without having to restart gdb
-      sed "2 i import sys, os\n\
-      sys.path.insert(0, '${pyEnv}/${pyEnv.sitePackages}')\n\
-      sys.path.insert(0, '$out/share/pwndbg/')\n\
-      os.environ['PATH'] += ':${binPath}'\n" -i $out/share/pwndbg/gdbinit.py
+      ${fix_init_script { target = "$out/share/pwndbg/gdbinit.py"; line = "2"; } }
 
       touch $out/share/pwndbg/.skip-venv
       makeWrapper ${gdb}/bin/gdb $out/bin/pwndbg \
         --add-flags "--quiet --early-init-eval-command=\"set auto-load safe-path /\" --command=$out/share/pwndbg/gdbinit.py"
-    '';
+    '');
 
     meta = {
       pwndbgVenv = pyEnv;

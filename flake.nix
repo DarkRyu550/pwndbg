@@ -1,12 +1,6 @@
 {
   description = "pwndbg";
-
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-
-  # LLDB is broken under the version of nixpkgs all the other packages use, but
-  # we can't use a version that's so new it's expecting Python 3.12.
-  inputs.nixpkgs-llvm.url = "github:NixOS/nixpkgs/23cf1985454db1e127c9418feee2d04a56ebe3ba";
-
   inputs.poetry2nix = {
     url = "github:nix-community/poetry2nix";
     inputs.nixpkgs.follows = "nixpkgs";
@@ -16,7 +10,6 @@
     {
       self,
       nixpkgs,
-      nixpkgs-llvm,
       poetry2nix,
     }:
     let
@@ -34,12 +27,6 @@
         import nixpkgs {
           inherit system;
           overlays = [ poetry2nix.overlays.default ];
-        }
-      );
-      llvmPkgsBySystem = forAllSystems(
-        system:
-        import nixpkgs-llvm {
-          inherit system;
         }
       );
       pkgUtil = forAllSystems (system: import ./nix/bundle/pkg.nix { pkgs = pkgsBySystem.${system}; });
@@ -90,7 +77,6 @@
             inputs.pwndbg = self;
             isDev = true;
             isLLDB = true;
-            llvmPkgs = llvmPkgsBySystem.${system};
           };
         }
         // (portableDrvs system)
@@ -104,7 +90,6 @@
           python3 = pkgsBySystem.${system}.python3;
           inputs.pwndbg = self;
           isLLDB = true;
-          llvmPkgs = llvmPkgsBySystem.${system};
         }
       );
     };

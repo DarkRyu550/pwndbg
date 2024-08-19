@@ -13,7 +13,6 @@
   python3 ? pkgs.python3,
   inputs ? null,
   isLLDB ? false,
-  llvmPkgs ? null,
   ...
 }:
 let
