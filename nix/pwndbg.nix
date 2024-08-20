@@ -40,8 +40,10 @@ let
     ''
   );
 
-  pwndbg = pkgs.stdenv.mkDerivation {
-    name = "pwndbg";
+  pwndbg = let
+    pwndbgName = if isLLDB then "pwndbg-lldb" else "pwndbg";
+  in pkgs.stdenv.mkDerivation {
+    name = pwndbgName;
     version = pwndbgVersion;
 
     src = pkgs.lib.sourceByRegex inputs.pwndbg ([
@@ -70,12 +72,19 @@ let
       mkdir -p $out/bin
 
       cp -r lldbinit.py pwndbg $out/share/pwndbg
-      cp pwndbg-lldb.py $out/bin/pwndbg
-      ${fix_init_script { target = "$out/bin/pwndbg"; line = "3"; } }
+      cp pwndbg-lldb.py $out/bin/${pwndbgName}
+
+      # patchShebangs isn't working, so we do it manually.
+      sed -i "1 d" $out/bin/${pwndbgName}
+      sed -i "1 i #!${pkgs.lib.makeBinPath [ python3 ]}/python3" $out/bin/${pwndbgName}
+
+      ${fix_init_script { target = "$out/bin/${pwndbgName}"; line = "4"; } }
 
       touch $out/share/pwndbg/.skip-venv
-      wrapProgram $out/bin/pwndbg \
-        --prefix PATH : ${ pkgs.lib.makeBinPath [ lldb ] }
+      wrapProgram $out/bin/${pwndbgName} \
+        --prefix PATH : ${ pkgs.lib.makeBinPath [ lldb ] } \
+        --set PWNDBG_LLDBINIT_DIR $out/share/pwndbg \
+        --set LLDB_DEBUGSERVER_PATH ${ pkgs.lib.makeBinPath [ lldb ] }/lldb-server
     '' else ''
       mkdir -p $out/share/pwndbg
 
@@ -83,7 +92,7 @@ let
       ${fix_init_script { target = "$out/share/pwndbg/gdbinit.py"; line = "2"; } }
 
       touch $out/share/pwndbg/.skip-venv
-      makeWrapper ${gdb}/bin/gdb $out/bin/pwndbg \
+      makeWrapper ${gdb}/bin/gdb $out/bin/${pwndbgName} \
         --add-flags "--quiet --early-init-eval-command=\"set auto-load safe-path /\" --command=$out/share/pwndbg/gdbinit.py"
     '');
 
