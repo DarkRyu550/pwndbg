@@ -716,8 +716,6 @@ def load_commands() -> None:
         import pwndbg.commands.linkmap
         import pwndbg.commands.memoize
         import pwndbg.commands.misc
-        import pwndbg.commands.mmap
-        import pwndbg.commands.mprotect
         import pwndbg.commands.onegadget
         import pwndbg.commands.pcplist
         import pwndbg.commands.peda
@@ -751,6 +749,8 @@ def load_commands() -> None:
     import pwndbg.commands.heap
     import pwndbg.commands.hexdump
     import pwndbg.commands.leakfind
+    import pwndbg.commands.mmap
+    import pwndbg.commands.mprotect
     import pwndbg.commands.nearpc
     import pwndbg.commands.next
     import pwndbg.commands.p2p
