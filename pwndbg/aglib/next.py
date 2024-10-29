@@ -108,6 +108,7 @@ async def break_next_branch(ec: pwndbg.dbg_mod.ExecutionController, address=None
     if ins:
         bp = proc.break_at(BreakpointLocation(ins.address), internal=True)
         await ec.cont(bp)
+        bp.remove()
         return ins
 
 
