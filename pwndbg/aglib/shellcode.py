@@ -102,7 +102,7 @@ async def exec_shellcode(
     page = pwndbg.aglib.vmmap.find(starting_address)
     assert page is not None
 
-    clearance = page.end - len(blob) - 1
+    clearance = page.end - starting_address - len(blob) - 1
     if clearance < 0:
         # The page isn't large enough to hold our shellcode.
         raise RuntimeError(
