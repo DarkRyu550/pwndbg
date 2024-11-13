@@ -1491,7 +1491,6 @@ class LLDB(pwndbg.dbg_mod.Debugger):
         pwndbg.commands.comments.init()
 
         import pwndbg.dbg.lldb.hooks
-        import pwndbg.dbg.lldb.pset
 
     @override
     def add_command(

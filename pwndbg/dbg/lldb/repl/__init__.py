@@ -53,6 +53,7 @@ import pwndbg.dbg.lldb
 from pwndbg.color import message
 from pwndbg.dbg import EventType
 from pwndbg.dbg.lldb import LLDB
+from pwndbg.dbg.lldb.pset import pset
 from pwndbg.dbg.lldb.repl.io import IODriver
 from pwndbg.dbg.lldb.repl.io import get_io_driver
 from pwndbg.dbg.lldb.repl.proc import EventHandler
@@ -339,6 +340,23 @@ def run(startup: List[str] | None = None, debug: bool = False) -> None:
             # "connect://" to it. So, from our pespective, it is a separate
             # command, even though it will also end up calling process_launch().
             gdb_remote(driver, relay, bits[1:], dbg)
+            continue
+
+        if bits[0] == "set":
+            # We handle `set` as a command override. We do this so that users
+            # may change Pwndbg-specific settings in the same way that they
+            # would in GDB Pwndbg.
+            #
+            # The alternatives to this are either (1) use a proper command,
+            # but that requires the process to already be running, and needs us
+            # to use a name other than "set", or (2) add our settings to the
+            # standard debugger settings mechanism, like we do in GDB, but LLDB
+            # doesn't support that.
+            if len(bits) != 3:
+                print("Usage: set <name> <value>")
+                continue
+
+            pset(bits[1], bits[2])
             continue
 
         # The command hasn't matched any of our filtered commands, just let LLDB

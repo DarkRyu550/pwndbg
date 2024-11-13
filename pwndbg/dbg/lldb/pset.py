@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 from typing import Any
 
 import pwndbg
@@ -8,23 +7,11 @@ import pwndbg.color.message as message
 import pwndbg.commands
 import pwndbg.lib.config as cfg
 
-parser = argparse.ArgumentParser(description="Changes a Pwndbg setting.")
-parser.add_argument(
-    "name",
-    type=str,
-    default=None,
-    help="Name of the setting to be changed",
-)
-parser.add_argument(
-    "value",
-    type=str,
-    default=None,
-    help="Value to change the setting into",
-)
 
-
-@pwndbg.commands.ArgparsedCommand(parser)
-def pset(name, value):
+def pset(name: str, value: str):
+    """
+    Parses and sets a Pwndbg configuration value.
+    """
     name = name.replace("-", "_")
     if name not in pwndbg.config.params:
         print(message.error(f"Unknown setting '{name}'"))
@@ -33,8 +20,8 @@ def pset(name, value):
     param = pwndbg.config.params[name]
     try:
         new_value = parse_value(param, value)
-    except InvalidParse:
-        print(message.error("Invalid value '{value}' for setting '{name}': {e.message}"))
+    except InvalidParse as e:
+        print(message.error(f"Invalid value '{value}' for setting '{name}': {e.message}"))
         return
 
     param.value = new_value
@@ -43,7 +30,9 @@ def pset(name, value):
 
 
 class InvalidParse(Exception):
-    pass
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__()
 
 
 def parse_value(param: pwndbg.lib.config.Parameter, expression: str) -> Any:
