@@ -140,7 +140,7 @@ In addition, you need to import this file in the `load_commands` function in `pw
 # Adding a Configuration Option
 
 ```python
-import pwndbg.config
+import pwndbg
 
 pwndbg.config.add_param("config-name", False, "example configuration option")
 ```
