@@ -352,11 +352,20 @@ def run(startup: List[str] | None = None, debug: bool = False) -> None:
             # to use a name other than "set", or (2) add our settings to the
             # standard debugger settings mechanism, like we do in GDB, but LLDB
             # doesn't support that.
+            warn = False
             if len(bits) != 3:
                 print("Usage: set <name> <value>")
-                continue
+                warn = True
+            else:
+                warn = not pset(bits[1], bits[2])
 
-            pset(bits[1], bits[2])
+            if warn:
+                print(
+                    message.warn(
+                        "The 'set' command is used exclusively for Pwndbg settings. If you meant to change LLDB settings, use the fully spelled-out 'settings' command, instead."
+                    )
+                )
+
             continue
 
         # The command hasn't matched any of our filtered commands, just let LLDB
