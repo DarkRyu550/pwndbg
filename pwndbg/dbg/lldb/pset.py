@@ -34,7 +34,7 @@ def pset(name: str, value: str) -> bool:
 class InvalidParse(Exception):
     def __init__(self, message: str):
         self.message = message
-        super().__init__()
+        super().__init__(message)
 
 
 def parse_value(param: pwndbg.lib.config.Parameter, expression: str) -> Any:
