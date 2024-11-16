@@ -15,6 +15,7 @@ import gdb
 
 import pwndbg.gdblib.elf
 import pwndbg.gdblib.proc
+from pwndbg.lib.common import hex2ptr_common
 
 functions: List[_GdbFunction] = []
 
@@ -67,3 +68,17 @@ def base(name_pattern: gdb.Value | str) -> int:
         if name in p.objfile:
             return p.vaddr
     raise ValueError(f"No mapping named {name}")
+
+
+@GdbFunction(only_when_running=True)
+def hex2ptr(hex_string: gdb.Value | str) -> int:
+    """
+    Converts a hex string to a little-endian address and returns the address.
+    Example usage: $hex2ptr("00 70 75 c1 cd ef 59 00")
+    """
+    if isinstance(hex_string, gdb.Value):
+        hex_string = hex_string.string()
+
+    hex_string = hex_string.replace(" ", "")
+    pointer = hex2ptr_common(hex_string)
+    return pointer

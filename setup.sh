@@ -78,8 +78,11 @@ install_pacman() {
         sudo pacman -Syu || true
     fi
     sudo pacman -S --noconfirm --needed git gdb python which debuginfod curl
-    if ! grep -qs "^set debuginfod enabled on" ~/.gdbinit; then
-        echo "set debuginfod enabled on" >> ~/.gdbinit
+    if [ -z "$UPDATE_MODE" ]; then
+        if ! grep -qs "^set debuginfod enabled on" ~/.gdbinit; then
+            echo "set debuginfod enabled on" >> ~/.gdbinit
+            echo "[*] Added 'set debuginfod enabled on' to ~/.gdbinit"
+        fi
     fi
 }
 
@@ -114,17 +117,6 @@ for arg in "$@"; do
 done
 
 PYTHON=''
-
-# Check for the presence of the initializer line in the user's ~/.gdbinit file
-if [ -z "$UPDATE_MODE" ] && grep -qs '^[^#]*source.*pwndbg/gdbinit.py' ~/.gdbinit; then
-    # Ask the user if they want to proceed and override the initializer line
-    read -p "A Pwndbg initializer line was found in your ~/.gdbinit file. Do you want to proceed and override it? (y/n) " answer
-
-    # If the user does not want to proceed, exit the script
-    if [[ "$answer" != "y" ]]; then
-        exit 0
-    fi
-fi
 
 if linux; then
     distro=$(grep "^ID=" /etc/os-release | cut -d'=' -f2 | sed -e 's/"//g')
@@ -217,17 +209,12 @@ source ${PWNDBG_VENV_PATH}/bin/activate
 poetry install
 
 if [ -z "$UPDATE_MODE" ]; then
-    # Comment old configs out
     if grep -qs '^[^#]*source.*pwndbg/gdbinit.py' ~/.gdbinit; then
-        if ! osx; then
-            sed -i '/^[^#]*source.*pwndbg\/gdbinit.py/ s/^/# /' ~/.gdbinit
-        else
-            # In BSD sed we need to pass ' ' to indicate that no backup file should be created
-            sed -i ' ' '/^[^#]*source.*pwndbg\/gdbinit.py/ s/^/# /' ~/.gdbinit
-        fi
+        echo 'Pwndbg is already sourced in ~/.gdbinit .'
+    else
+        # Load Pwndbg into GDB on every launch.
+        echo "source $PWD/gdbinit.py" >> ~/.gdbinit
+        echo "[*] Added 'source $PWD/gdbinit.py' to ~/.gdbinit so that Pwndbg will be loaded on every launch of GDB."
     fi
-
-    # Load Pwndbg into GDB on every launch.
-    echo "source $PWD/gdbinit.py" >> ~/.gdbinit
-    echo "[*] Added 'source $PWD/gdbinit.py' to ~/.gdbinit so that Pwndbg will be loaded on every launch of GDB."
+    echo "Please set the PWNDBG_NO_AUTOUPDATE environment variable to any value to disable the automatic updating of dependencies when Pwndbg is loaded."
 fi

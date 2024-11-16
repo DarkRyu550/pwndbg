@@ -2,6 +2,9 @@
   - [Environment setup](#environment-setup)
     - [Development using Nix](#development-using-nix)
   - [Testing](#testing)
+  - [Writing Tests](#writing-tests)
+  - [QEMU Tests](#qemu-tests)
+  - [Kernel Tests](#kernel-tests)
     - [Testing Under Nix](#testing-under-nix)
   - [Linting](#linting)
   - [Minimum Supported Versions](#minimum-supported-versions)
@@ -17,19 +20,26 @@
   - [What if the emulator fails?](#what-if-the-emulator-fails)
   - [Caching annotations](#caching-annotations)
   - [Other random annotation details](#other-random-annotation-details)
+  - [Adding or fixing annotations](#adding-or-fixing-annotations)
+  - [Bug root cause](#bug-root-cause)
+  - [Creating small cross-architecture programs](#creating-small-cross-architecture-programs)
 
 # Development Basics
+
 ## Environment setup
 
 After installing `pwndbg` by running `setup.sh`, you additionally need to run `./setup-dev.sh` to install the necessary development dependencies.
 
-If you would like to use Docker, you can create a Docker image with everything already installed for you. To build and run the container, run the following commands:
+If you would like to use Docker, you can create a Docker image with everything already installed for you. To build and
+run the container, run the following commands:
+
 ```bash
-docker build -t pwndbg . 
+docker build -t pwndbg .
 docker run -it --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v `pwd`:/pwndbg pwndbg bash
 ```
 
 If you'd like to use `docker compose`, you can run
+
 ```bash
 docker compose run -i main
 ```
@@ -54,9 +64,16 @@ To run these tests, run [`./tests.sh`](./tests.sh). You can filter the tests to 
 To invoke cross-architecture tests, use `./qemu-tests.sh`, and to run unit tests, use `./unit-tests.sh`
 
 ## Writing Tests
-Each test is a Python function that runs inside of an isolated GDB session. Using a [`pytest`](https://docs.pytest.org/en/latest/) fixture at the beginning of each test, GDB will attach to a [`binary`](tests/gdb-tests/conftest.py) or connect to a [`QEMU instance`](tests/qemu-tests/conftest.py). Each test runs some commands and uses Python `assert` statements to verify correctness. We can access `pwndbg` library code like `pwndbg.aglib.regs.rsp` as well as execute GDB commands with `gdb.execute()`.
 
-We can take a look at [`tests/gdb-tests/tests/test_symbol.py`](tests/gdb-tests/tests/test_symbol.py) for an example of a simple test. Looking at a simplified version of the top-level code, we have this:
+Each test is a Python function that runs inside of an isolated GDB session. 
+Using a [`pytest`](https://docs.pytest.org/en/latest/) fixture at the beginning of each test, 
+GDB will attach to a [`binary`](tests/gdb-tests/conftest.py) or connect to a [`QEMU instance`](tests/qemu-tests/conftest.py). 
+Each test runs some commands and uses Python `assert` statements to verify correctness. 
+We can access `pwndbg` library code like `pwndbg.gdblib.regs.rsp` as well as execute GDB commands with `gdb.execute()`.
+
+We can take a look at [`tests/gdb-tests/tests/test_symbol.py`](tests/gdb-tests/tests/test_symbol.py) for an example of a
+simple test. Looking at a simplified version of the top-level code, we have this:
+
 ```python
 import gdb
 import pwndbg
@@ -68,6 +85,7 @@ BINARY = tests.binaries.get("symbol_1600_and_752.out")
 Since these tests run inside GDB, we can import the `gdb` Python library. We also import the `tests` module, which makes it easy to get the path to the test binaries located in [`tests/gdb-tests/tests/binaries`](tests/gdb-tests/tests/binaries). You should be able to reuse the binaries in this folder for most tests, but if not feel free to add a new one.
 
 Here's a small snippet of the actual test:
+
 ```python
 def test_hexdump(start_binary):
     start_binary(BINARY)
@@ -80,15 +98,17 @@ def test_hexdump(start_binary):
 `pytest` will run any function that starts with `test_` as a new test, so there is no need to register your new test anywhere. The `start_binary` argument is a function that will run the binary you give it, and it will set some common options before starting the binary. Using `start_binary` is recommended if you don't need any additional customization to GDB settings before starting the binary, but if you do it's fine to not use it.
 
 ## QEMU Tests
+
 Our `gdb-tests` run in x86. To debug other architectures, we use QEMU for emulation, and attach to its debug port. These tests are located in [`tests/qemu-tests/tests/user`](tests/qemu-tests/tests/user). Test creation is identical to our x86 tests - create a Python function with a Pytest fixture name as the parameter (it matches based on the name), and call the argument to start debugging a binary. The `qemu_assembly_run` fixture takes in a Python string of assembly code, compiles it in the appropriate architecture, and runs it - no need to create an external file or edit a Makefile.
 
 ## Kernel Tests
+
 We use `qemu-system` for full system level emulation for our Linux kernel tests. These are located in [`tests/qemu-tests/tests/system`](tests/qemu-tests/tests/system). The tests will run for a variety kernel configurations and architectures.
 
 ### Testing Under Nix
 
-You will need to build a nix-compatible gdbinit.py file, which you can do with `nix build .#pwndbg-dev`. Then simply run
-the test by adding the `--nix` flag:
+You will need to build a nix-compatible `gdbinit.py` file, which you can do with `nix build .#pwndbg-dev`. Then simply
+run the test by adding the `--nix` flag:
 
 ```bash
 ./tests.sh --nix [filter]
@@ -96,7 +116,9 @@ the test by adding the `--nix` flag:
 
 ## Linting
 
-The `lint.sh` script runs `isort`, `black`, `ruff`, `shfmt`, and `vermin`. `isort` and `black` are able to automatically fix any issues they detect, and you can enable this by running `./lint.sh -f`. You can find the configuration files for these tools in `setup.cfg` and `pyproject.toml`.
+The `lint.sh` script runs `isort`, `ruff`, `shfmt`, and `vermin`. `isort` and `ruff` are able to automatically fix any
+issues they detect, and you can enable this by running `./lint.sh -f`. You can find the configuration files for these
+tools in `pyproject.toml` or by checking the arguments passed inside `lint.sh`.
 
 When submitting a PR, the CI job defined in `.github/workflows/lint.yml` will verify that running `./lint.sh` succeeds, otherwise the job will fail and we won't be able to merge your PR.
 
@@ -114,7 +136,7 @@ Our goal is to fully support all Ubuntu LTS releases that have not reach end-of-
 
 Note that while all code should run without errors on these supported LTS versions, it's fine if older versions don't support all of the features of newer versions, as long as this is handled correctly and this information is shown to the user. For example, we may make use of some GDB APIs in newer versions that we aren't able to provide alternative implementations for in older versions, and so in these cases we should inform the user that the functionality can't be provided due to the version of GDB.
 
-The `lint.sh` script described in the previous section runs [`vermin`](https://github.com/netromdk/vermin) to ensure that our code does not use any features that aren't supported on Python 3.6.
+The `lint.sh` script described in the previous section runs [`vermin`](https://github.com/netromdk/vermin) to ensure that our code does not use any features that aren't supported on Python 3.10.
 
 # Adding a Command
 
@@ -274,6 +296,7 @@ debugger-specific and their loading must be properly gated off behind the correc
 should ideally be placed in a separate location from the rest of the commands in `pwndbg/commands/`.
 
 # Annotations
+
 Alongside the disassembled instructions in the dashboard, Pwndbg also has the ability to display annotations - text that contains relevent information regarding the execution of the instruction. For example, on the x86 `MOV` instruction, we can display the concrete value that gets placed into the destination register. Likewise, we can indicate the results of mathematical operations and memory accesses. The annotation in question is always dependent on the exact instruction being annotated - we handle it in a case-by-case basis.
 
 The main hurdle in providing annotations is determining what each instruction does, getting the relevent CPU registers and memory that are accessed, and then resolving concrete values of the operands. We call the process of determining this information "enhancement", as we enhance the information provided natively by GDB.
@@ -333,9 +356,11 @@ The reason we could do the second option, in this case, is because we could reas
 However, this will not be the case while enhancing instruction #3 while we are paused at instruction #2. This instruction is in the future, and without emulation, we cannot safely reason about the operands in question. It is reading from `rsi`, which might be mutated from the current value that `rsi` has in the stopped process (and in this case, we happen to know that it will be mutated). We must use emulation to determine the `before_value` of `rsi` in this case, and can't just read from the host processes register set. This principle applies in general - future instructions must be emulated to be fully annotated. When emulation is disable, the annotations are not as detailed since we can't fully reason about process state for future instructions.
 
 ## What if the emulator fails?
+
 It is possible for the emulator to fail to execute an instruction - either due to a restrictions in the engine itself, or the instruction inside segfaults and cannot continue. If the Unicorn Engine fails, there is no real way we can recover. When this happens, we simply stop emulating for the current step, and we try again the next time the process stops when we instantiate the emulator from scratch again.
 
 ## Caching annotations
+
 When we are stepping through the emulator, we want to remember the annotations of the past couple instructions. We don't want to `nexti`, and suddenly have the annotation of the previously executed instruction deleted. At the same time, we also never want stale annotations that might result from coming back to point in the program to which we have stepped before, such as the middle of a loop via a breakpoint.
 
 New annotations are only created when the process stops, and we create annotations for next handful of instructions to be executed. If we `continue` in GDB and stop at a breakpoint, we don't want annotations to appear behind the PC that are from a previous time we were near the location in question. To avoid stale annotations while still remembering them when stepping, we have a simple caching method:
@@ -344,7 +369,7 @@ While we are doing our enhancement, we create a list containing the addresses of
 
 For example, say we have the following instructions with the first number being the memory address:
 
-```
+```gdb
    0x555555556259 <main+553>    lea    rax, [rsp + 0x90]
    0x555555556261 <main+561>    mov    edi, 1                          EDI => 1
    0x555555556266 <main+566>    mov    rsi, rax
@@ -374,7 +399,8 @@ We might think "why not just check if it's the next address - 0x555555556279 in 
 - `pwndbg/aglib/nearpc.py` is responsible for getting the list of enhanced PwndbgInstruction objects and converting them to the output seen in the 'disasm' view of the dashboard.
 
 ## Adding or fixing annotations
-We annotate on an instruction-by-instruction basis. Effectively, imagine a giant `switch` statement that selects the correct handler to create an annotation based on the specific instruction. Many instruction types can be grouped and annotated using the same logic, such as `load`, `store`, and `arithmetic` instructions. 
+
+We annotate on an instruction-by-instruction basis. Effectively, imagine a giant `switch` statement that selects the correct handler to create an annotation based on the specific instruction. Many instruction types can be grouped and annotated using the same logic, such as `load`, `store`, and `arithmetic` instructions.
 
 See [`pwndbg/aglib/disasm/aarch64.py`](pwndbg/aglib/disasm/aarch64.py) as an example. We define sets that group instructions using the unique Capstone ID for each instruction, and inside the constructor of `DisassemblyAssistant` we have a mapping of instructions to a specific handler. The `_set_annotation_string` function will match the instruction to the correct handler, which set the `instruction.annotation` field.
 
@@ -382,7 +408,7 @@ If there is a bug in an annotation, the first order of business is finding its a
 
 If an annotation is causing a crash, is it most likely due to a handler making an incorrect assumption on the number of operands, leading to a `list index out of range` error. One possible source of this is that a given instruction has multiple different disassembly representations. Take the RISC-V `JALR` instruction. It can be represented in 3 ways:
 
-```
+```asm
 jalr rs1        # return register is implied as ra, and imm is implied as 0
 jalr rs1, imm   # return register is implied as ra
 jalr rd, rs1, imm
@@ -399,6 +425,7 @@ When encountering an instruction that is behaving strangely (incorrect annotatio
 If the issue is not related to branches, check the operands and the resolved values for registers and memory accesses. Verify that the values are correct - are the resolved memory locations correct? Step past the instruction and use instructions like `telescope` and `regs` to read memory and verify if the claim that the annotation is making is correct. For things like memory operands, you can try to look around the resolved memory location in memory to see the actual value that the instruction dereferenced, and see if the resolved memory location is simply off by a couple bytes.
 
 Example output of dumping a `mov` instruction:
+
 ```
 mov qword ptr [rsp], rsi at 0x55555555706c (size=4) (arch: x86)
         ID: 460, mov

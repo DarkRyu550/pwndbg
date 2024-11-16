@@ -747,6 +747,7 @@ def load_commands() -> None:
     import pwndbg.commands.elf
     import pwndbg.commands.flags
     import pwndbg.commands.heap
+    import pwndbg.commands.hex2ptr
     import pwndbg.commands.hexdump
     import pwndbg.commands.leakfind
     import pwndbg.commands.mmap

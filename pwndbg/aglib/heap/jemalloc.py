@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import gdb
+from typing import Dict
 
-import pwndbg.gdblib.info
-import pwndbg.gdblib.memory
-import pwndbg.gdblib.typeinfo
+import pwndbg.aglib.memory
+import pwndbg.aglib.typeinfo
 
 # adapted from jemalloc source 5.3.0
 LG_VADDR = 48
@@ -193,26 +192,25 @@ class RTree:
     def __init__(self, addr: int) -> None:
         self._addr = addr
 
-        rtree_s = pwndbg.gdblib.typeinfo.load("struct rtree_s")
-        # self._Value = pwndbg.gdblib.memory.poi(emap_s, self._addr)
+        rtree_s = pwndbg.aglib.typeinfo.load("struct rtree_s")
+        if rtree_s is None:
+            raise pwndbg.dbg_mod.Error("rtree_s type not found")
 
-        # self._Value = pwndbg.gdblib.memory.fetch_struct_as_dictionary(
+        # self._Value = pwndbg.aglib.memory.poi(emap_s, self._addr)
+
+        # self._Value = pwndbg.aglib.memory.fetch_struct_as_dictionary(
         #     "rtree_s", self._addr, include_only_fields={"root"}
         # )
-        self._Value = gdb.Value(self._addr).cast(rtree_s.pointer()).dereference()
+        # pwndbg.aglib.memory
+        self._Value = pwndbg.aglib.memory.get_typed_pointer_value("struct rtree_s", self._addr)
 
         self._extents = None
 
     @staticmethod
     def get_rtree() -> RTree:
-        try:
-            addr = pwndbg.gdblib.info.address("je_arena_emap_global")
-            if addr is None:
-                return None
-
-        except gdb.MemoryError:
-            return None
-
+        addr = pwndbg.dbg.selected_inferior().symbol_address_from_name("je_arena_emap_global")
+        if addr is None:
+            raise pwndbg.dbg_mod.Error("Required je_arena_emap_global symbol not found")
         return RTree(addr)
 
     @property
@@ -232,12 +230,12 @@ class RTree:
         return ptrbits - cumbits
 
     # Can be used to lookup key quickly in cache
-    def __rtree_leafkey(self, key, level):
+    def __rtree_leafkey(self, key: int, level: int) -> int:
         mask = ~((1 << self.__rtree_leaf_maskbits(level)) - 1)
         # print("mask: ", mask, bin(mask))
         return key & mask
 
-    def __subkey(self, key, level):
+    def __subkey(self, key: int, level: int) -> int:
         """
         Return a portion of the key that is used to find the node/leaf in the rtree at a specific level.
         Source: https://github.com/jemalloc/jemalloc/blob/5b72ac098abce464add567869d082f2097bd59a2/include/jemalloc/internal/rtree.h#L161
@@ -255,25 +253,31 @@ class RTree:
     def __alignment_addr2base(addr, alignment=64):
         return addr - (addr - (addr & (~(alignment - 1))))
 
-    def lookup_hard(self, key):
+    def lookup_hard(self, key: int):
         """
         Lookup the key in the rtree and return the value.
 
         How it works:
         - Jemalloc stores the extent address in the rtree as a node and to find a specific node we need a address key.
         """
-        rtree_node_elm_s = pwndbg.gdblib.typeinfo.load("struct rtree_node_elm_s")
-        rtree_leaf_elm_s = pwndbg.gdblib.typeinfo.load("struct rtree_leaf_elm_s")
+        rtree_node_elm_s = pwndbg.aglib.typeinfo.load("struct rtree_node_elm_s")
+        if rtree_node_elm_s is None:
+            raise pwndbg.dbg_mod.Error("rtree_node_elm_s type not found")
+        rtree_leaf_elm_s = pwndbg.aglib.typeinfo.load("struct rtree_leaf_elm_s")
+        if rtree_leaf_elm_s is None:
+            raise pwndbg.dbg_mod.Error("rtree_leaf_elm_s type not found")
 
         # Credits: 盏一's jegdb
+        # https://web.archive.org/web/20221114090949/https://github.com/hidva/hidva.github.io/blob/dev/_drafts/jegdb.py
 
         # For subkey 0
         subkey = self.__subkey(key, 1)
 
         addr = int(self.root.address) + subkey * rtree_node_elm_s.sizeof
-        node = pwndbg.gdblib.memory.fetch_struct_as_dictionary("rtree_node_elm_s", addr)
-
-        child_repr: int = node["child"]["repr"]  # type: ignore[index]
+        fetched_struct = pwndbg.aglib.memory.get_typed_pointer_value(
+            "struct rtree_node_elm_s", addr
+        )
+        child_repr = int(fetched_struct["child"]["repr"])
 
         # on node element, child contains the bits with which we can find another node or leaf element
         if child_repr == 0:
@@ -282,10 +286,12 @@ class RTree:
         # For subkey 1
         subkey = self.__subkey(key, 2)
         addr = child_repr + subkey * rtree_leaf_elm_s.sizeof
-        leaf = pwndbg.gdblib.memory.fetch_struct_as_dictionary("rtree_leaf_elm_s", addr)
+        fetched_struct = pwndbg.aglib.memory.get_typed_pointer_value(
+            "struct rtree_leaf_elm_s", addr
+        )
 
         # On leaf element, le_bits contains the virtual memory address bits so we can use it to find the extent address
-        val: int = leaf["le_bits"]["repr"]  # type: ignore[index]
+        val = int(fetched_struct["le_bits"]["repr"])
         if val == 0:
             return None
 
@@ -325,21 +331,23 @@ class RTree:
                 last_addr = None
                 extent_addresses = []
 
-                rtree_node_elm_s = pwndbg.gdblib.typeinfo.load("struct rtree_node_elm_s")
-                rtree_leaf_elm_s = pwndbg.gdblib.typeinfo.load("struct rtree_leaf_elm_s")
+                rtree_node_elm_s = pwndbg.aglib.typeinfo.load("struct rtree_node_elm_s")
+                if rtree_node_elm_s is None:
+                    raise pwndbg.dbg_mod.Error("rtree_node_elm_s type not found")
+                rtree_leaf_elm_s = pwndbg.aglib.typeinfo.load("struct rtree_leaf_elm_s")
+                if rtree_leaf_elm_s is None:
+                    raise pwndbg.dbg_mod.Error("rtree_leaf_elm_s type not found")
 
                 max_subkeys = 1 << rtree_levels[RTREE_HEIGHT - 1][0]["bits"]
                 # print("max_subkeys: ", max_subkeys)
 
                 for i in range(max_subkeys):
                     node_address = int(root.address) + i * rtree_node_elm_s.sizeof
-                    # node = pwndbg.gdblib.memory.poi(rtree_node_elm_s, node)
-                    fetched_struct = pwndbg.gdblib.memory.get_typed_pointer_value(
+                    # node = pwndbg.aglib.memory.poi(rtree_node_elm_s, node)
+                    fetched_struct = pwndbg.aglib.memory.get_typed_pointer_value(
                         rtree_node_elm_s, node_address
                     )
-                    node = pwndbg.gdblib.memory.pack_struct_into_dictionary(fetched_struct)
-
-                    leaf0: int = node["child"]["repr"]  # type: ignore[index]
+                    leaf0 = int(fetched_struct["child"]["repr"])
                     if leaf0 == 0:
                         continue
 
@@ -349,13 +357,12 @@ class RTree:
                     # level 1
                     for j in range(max_subkeys):
                         leaf_address = leaf0 + j * rtree_leaf_elm_s.sizeof
-                        # leaf = pwndbg.gdblib.memory.poi(rtree_leaf_elm_s, leaf)
-                        fetched_struct = pwndbg.gdblib.memory.get_typed_pointer_value(
+                        # leaf = pwndbg.aglib.memory.poi(rtree_leaf_elm_s, leaf)
+                        fetched_struct = pwndbg.aglib.memory.get_typed_pointer_value(
                             rtree_leaf_elm_s, leaf_address
                         )
-                        leaf = pwndbg.gdblib.memory.pack_struct_into_dictionary(fetched_struct)
-
-                        if (val := int(leaf["le_bits"]["repr"])) == 0:  # type: ignore[index, arg-type]
+                        val = int(fetched_struct["le_bits"]["repr"])
+                        if val == 0:
                             continue
 
                         # print("leaf: ", hex(leaf_address))
@@ -389,7 +396,7 @@ class RTree:
 
                         self._extents.append(extent_tmp)
 
-            except gdb.MemoryError:
+            except pwndbg.dbg_mod.Error:
                 pass
 
         return self._extents
@@ -409,8 +416,7 @@ class Extent:
         self._addr = addr
 
         # fetch_struct_as_dictionary does not support union currently
-        edata_s = pwndbg.gdblib.typeinfo.load("struct edata_s")
-        self._Value = gdb.Value(self._addr).cast(edata_s.pointer()).dereference()
+        self._Value = pwndbg.aglib.memory.get_typed_pointer_value("struct edata_s", self._addr)
 
         self._bitfields = None
 
@@ -423,14 +429,14 @@ class Extent:
         return (int(self._Value["e_size_esn"]) >> LG_PAGE) << LG_PAGE
 
     @property
-    def extent_address(self):
+    def extent_address(self) -> int:
         """
         Address of the extent data structure (not the actual memory).
         """
         return self._addr
 
     @property
-    def allocated_address(self):
+    def allocated_address(self) -> int:
         """
         Starting address of allocated memory
         cache-oblivious large allocation alignment:
@@ -438,18 +444,18 @@ class Extent:
             However, the pointer returned to user is randomized between the 'base' and 'base + 4 KiB' (0x1000) range.
             Source code: https://github.com/jemalloc/jemalloc/blob/a25b9b8ba91881964be3083db349991bbbbf1661/include/jemalloc/internal/arena_inlines_b.h#L505
         """
-        return self._Value["e_addr"]
+        return int(self._Value["e_addr"])
 
     @property
-    def bsize(self):
-        return self._Value["e_bsize"]
+    def bsize(self) -> int:
+        return int(self._Value["e_bsize"])
 
     @property
-    def bits(self):
-        return self._Value["e_bits"]
+    def bits(self) -> int:
+        return int(self._Value["e_bits"])
 
     @property
-    def bitfields(self):
+    def bitfields(self) -> Dict[str, int]:
         """
         Extract bitfields
 
@@ -482,13 +488,13 @@ class Extent:
         return self._bitfields
 
     @property
-    def state_name(self):
+    def state_name(self) -> str:
         state_mapping = ["Active", "Dirty", "Muzzy", "Retained"]
 
         return state_mapping[self.bitfields["state"]]
 
     @property
-    def has_slab(self):
+    def has_slab(self) -> bool:
         """
         Returns True if the extent is used for small size classes.
         Reference for size in Table 1 at https://jemalloc.net/jemalloc.3.html
@@ -497,14 +503,14 @@ class Extent:
         return self.bitfields["slab"] != 0
 
     @property
-    def is_free(self):
+    def is_free(self) -> bool:
         """
         Returns True if the extent is free.
         """
         pass
 
     @property
-    def pai(self):
+    def pai(self) -> str:
         """
         Page Allocator Interface
         """

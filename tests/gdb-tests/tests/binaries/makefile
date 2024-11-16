@@ -95,11 +95,15 @@ heap_malloc_chunk.out: heap_malloc_chunk.c
 
 heap_jemalloc_extent_info.out: heap_jemalloc_extent_info.c
 	@echo "[+] Building heap_jemalloc_extent_info.out"
-	${CC} -g -O0 -Wno-nonnull -Wno-unused-result -o heap_jemalloc_extent_info.out heap_jemalloc_extent_info.c -lpthread /usr/local/lib/libjemalloc.a -lm -lstdc++ -pthread -ldl
+	${CC} -g -O0 -Wno-nonnull -Wno-unused-result \
+	-o heap_jemalloc_extent_info.out heap_jemalloc_extent_info.c \
+	-Wl,-Bstatic -ljemalloc -Wl,-Bdynamic -lpthread -lm -lstdc++ -pthread -ldl
 
 heap_jemalloc_heap.out: heap_jemalloc_heap.c
 	@echo "[+] Building heap_jemalloc_heap.out"
-	${CC} -g -O0 -Wno-nonnull -Wno-unused-result -o heap_jemalloc_heap.out heap_jemalloc_heap.c -lpthread /usr/local/lib/libjemalloc.a -lm -lstdc++ -pthread -ldl
+	${CC} -g -O0 -Wno-nonnull -Wno-unused-result \
+	-o heap_jemalloc_heap.out heap_jemalloc_heap.c \
+	-Wl,-Bstatic -ljemalloc -Wl,-Bdynamic -lpthread -lm -lstdc++ -pthread -ldl
 
 
 multiple_threads.out: multiple_threads.c
