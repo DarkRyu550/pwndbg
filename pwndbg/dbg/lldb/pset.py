@@ -21,7 +21,7 @@ def pset(name: str, value: str) -> bool:
     try:
         new_value = parse_value(param, value)
     except InvalidParse as e:
-        print(message.error(f"Invalid value '{value}' for setting '{name}': {e.message}"))
+        print(message.error(f"Invalid value '{value}' for setting '{name}': {e}"))
         return False
 
     param.value = new_value
@@ -32,9 +32,7 @@ def pset(name: str, value: str) -> bool:
 
 
 class InvalidParse(Exception):
-    def __init__(self, message: str):
-        self.message = message
-        super().__init__(message)
+    pass
 
 
 def parse_value(param: pwndbg.lib.config.Parameter, expression: str) -> Any:
