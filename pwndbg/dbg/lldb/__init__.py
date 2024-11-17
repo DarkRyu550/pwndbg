@@ -1289,7 +1289,6 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         self,
         location: pwndbg.dbg_mod.BreakpointLocation | pwndbg.dbg_mod.WatchpointLocation,
         stop_handler: Callable[[pwndbg.dbg_mod.StopPoint], bool] | None = None,
-        one_shot: bool = False,
         internal: bool = False,
     ) -> pwndbg.dbg_mod.StopPoint:
         if isinstance(location, pwndbg.dbg_mod.BreakpointLocation):

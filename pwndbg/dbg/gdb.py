@@ -641,7 +641,6 @@ class GDBProcess(pwndbg.dbg_mod.Process):
         self,
         location: pwndbg.dbg_mod.BreakpointLocation | pwndbg.dbg_mod.WatchpointLocation,
         stop_handler: Callable[[pwndbg.dbg_mod.StopPoint], bool] | None = None,
-        one_shot: bool = False,
         internal: bool = False,
     ) -> pwndbg.dbg_mod.StopPoint:
         # GDB does not support creating new breakpoints in the middle of a
@@ -658,7 +657,6 @@ class GDBProcess(pwndbg.dbg_mod.Process):
                 f"*{location.address:#x}",
                 gdb.BP_BREAKPOINT,
                 internal=internal,
-                temporary=one_shot,
             )
         elif isinstance(location, pwndbg.dbg_mod.WatchpointLocation):
             if location.watch_read and location.watch_write:
@@ -673,7 +671,6 @@ class GDBProcess(pwndbg.dbg_mod.Process):
                 gdb.BP_WATCHPOINT,
                 wp_class=c,
                 internal=internal,
-                temporary=one_shot,
             )
 
         if internal:

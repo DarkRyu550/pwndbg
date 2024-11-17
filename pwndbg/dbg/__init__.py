@@ -437,7 +437,6 @@ class Process:
         self,
         location: BreakpointLocation | WatchpointLocation,
         stop_handler: Callable[[StopPoint], bool] | None = None,
-        one_shot: bool = False,
         internal: bool = False,
     ) -> StopPoint:
         """
@@ -453,11 +452,6 @@ class Process:
         as a signal to stop, and a return value of `False` being interpreted as
         a signal to continue execution. The extent of the actions that may be
         taken during the stop handler is determined by the debugger.
-
-        Breakpoints and watchpoints marked as `one_shot` are removed after they
-        are first triggered. For the purposes of `one_shot`, a breakpoint or
-        watchpoint that has a stop handler is only considered to be triggered
-        when its stop handler returns `True`.
 
         Marking a breakpoint or watchpoint as `internal` hints to the
         implementation that the created breakpoint or watchpoint should not be
