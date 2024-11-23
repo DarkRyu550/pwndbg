@@ -41,9 +41,11 @@ def get_register(
 ) -> pwndbg.dbg_mod.Value | None:
     if frame is None:
         frame = pwndbg.dbg.selected_frame()
-    assert (
-        frame is not None
-    ), "pwndbg.dbg.selected_frame() should never return None when marked with @OnlyWhenRunning"
+    if frame is None:
+        # `read_reg` will return None when it catches this exception. This
+        # mirrors how a `gdb.error` causes `read_reg` to return `None` in
+        # gdblib when no frame is selected.
+        raise pwndbg.dbg_mod.Error("No currently selected frame to read registers from")
 
     regs = regs_in_frame(frame)
 
