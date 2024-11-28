@@ -1383,7 +1383,11 @@ class LLDBProcess(pwndbg.dbg_mod.Process):
         if len(link) == 0:
             return spec.fullpath
 
-        return os.path.normpath(f"{spec.dirname}/{link}")
+        # Get the absolute path if it is not already absolute.
+        if not os.path.isabs(link):
+            link = os.path.normpath(f"{spec.dirname}/{link}")
+
+        return link
 
     @override
     def module_section_locations(self) -> List[Tuple[int, int, str, str]]:
