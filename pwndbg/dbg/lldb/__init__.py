@@ -1491,6 +1491,7 @@ class LLDB(pwndbg.dbg_mod.Debugger):
         self._current_process_is_gdb_remote = False
 
         import pwndbg
+
         self.suspended_events = {a: False for a in pwndbg.dbg_mod.EventType}
 
         debugger = args[0]
