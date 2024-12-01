@@ -1468,6 +1468,9 @@ class LLDB(pwndbg.dbg_mod.Debugger):
     # them by means of the `_trigger_event()` method.
     event_handlers: Dict[pwndbg.dbg_mod.EventType, List[Callable[..., T]]]
 
+    # Event types may be suspended. We keep track of that here.
+    suspended_events: Dict[pwndbg.dbg_mod.EventType, bool]
+
     # The prompt hook fired right before the prompt is displayed.
     prompt_hook: Callable[[], None]
 
@@ -1486,6 +1489,9 @@ class LLDB(pwndbg.dbg_mod.Debugger):
         self.event_handlers = {}
         self.controllers = []
         self._current_process_is_gdb_remote = False
+
+        import pwndbg
+        self.suspended_events = {a: False for a in pwndbg.dbg_mod.EventType}
 
         debugger = args[0]
         assert (
@@ -1698,6 +1704,14 @@ class LLDB(pwndbg.dbg_mod.Debugger):
 
         return decorator
 
+    @override
+    def suspend_events(self, ty: pwndbg.dbg_mod.EventType) -> None:
+        self.suspended_events[ty] = True
+
+    @override
+    def resume_events(self, ty: pwndbg.dbg_mod.EventType) -> None:
+        self.suspended_events[ty] = False
+
     def _fire_prompt_hook(self) -> None:
         """
         The REPL calls this function in order to signal that the prompt hooks
@@ -1713,6 +1727,9 @@ class LLDB(pwndbg.dbg_mod.Debugger):
         """
         if ty not in self.event_handlers:
             # No one cares about this event type.
+            return
+        if self.suspended_events[ty]:
+            # This event has been suspended.
             return
 
         for handler in self.event_handlers[ty]:

@@ -1073,6 +1073,36 @@ class GDBValue(pwndbg.dbg_mod.Value):
         return GDBValue(self.inner[key])
 
 
+def _gdb_event_class_from_event_type(ty: pwndbg.dbg_mod.EventType) -> Any:
+    """
+    Returns the GDB event class that corresponds to the given event type.
+    """
+    if ty == pwndbg.dbg_mod.EventType.EXIT:
+        return gdb.events.exited
+    elif ty == pwndbg.dbg_mod.EventType.CONTINUE:
+        return gdb.events.cont
+    elif ty == pwndbg.dbg_mod.EventType.START:
+        # Pwndbg installs this one when it loads the GDB event support module.
+        #
+        # We should never run this function before it gets loaded, but, if this
+        # ever changes by mistake, we want the mistake to be caught early, with
+        # a clear error.
+        assert hasattr(
+            gdb.events, "start"
+        ), "gdb.events.start is missing. Did the Pwndbg GDB event code not get loaded?"
+        return gdb.events.start
+    elif ty == pwndbg.dbg_mod.EventType.STOP:
+        return gdb.events.stop
+    elif ty == pwndbg.dbg_mod.EventType.NEW_MODULE:
+        return gdb.events.new_objfile
+    elif ty == pwndbg.dbg_mod.EventType.MEMORY_CHANGED:
+        return gdb.events.memory_changed
+    elif ty == pwndbg.dbg_mod.EventType.REGISTER_CHANGED:
+        return gdb.events.register_changed
+
+    raise NotImplementedError(f"unknown event type {ty}")
+
+
 class GDB(pwndbg.dbg_mod.Debugger):
     @override
     def setup(self):
@@ -1325,6 +1355,14 @@ class GDB(pwndbg.dbg_mod.Debugger):
             return pwndbg.gdblib.events.mem_changed
         elif ty == pwndbg.dbg_mod.EventType.REGISTER_CHANGED:
             return pwndbg.gdblib.events.reg_changed
+
+    @override
+    def suspend_events(self, ty: pwndbg.dbg_mod.EventType) -> None:
+        pwndbg.gdblib.events.pause(_gdb_event_class_from_event_type(ty))
+
+    @override
+    def resume_events(self, ty: pwndbg.dbg_mod.EventType) -> None:
+        pwndbg.gdblib.events.unpause(_gdb_event_class_from_event_type(ty))
 
     @override
     def set_sysroot(self, sysroot: str) -> bool:

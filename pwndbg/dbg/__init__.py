@@ -927,6 +927,24 @@ class Debugger:
         """
         raise NotImplementedError()
 
+    def suspend_events(self, ty: EventType) -> None:
+        """
+        Suspend delivery of all events of the given type until it is resumed
+        through a call to `resume_events`.
+
+        Events triggered during a suspension will be ignored, and will not be
+        delived, even after delivery is resumed.
+        """
+        raise NotImplementedError()
+
+    def resume_events(self, ty: EventType) -> None:
+        """
+        Resume the delivery of all events of the given type, if previously
+        suspeded through a call to `suspend_events`. Does nothing if the
+        delivery has not been previously suspeded.
+        """
+        raise NotImplementedError()
+
     def set_sysroot(self, sysroot: str) -> bool:
         """
         Sets the system root for this debugger.
