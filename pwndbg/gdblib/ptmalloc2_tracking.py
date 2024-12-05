@@ -50,6 +50,7 @@ that were not made explicit.
 from __future__ import annotations
 
 from typing import Dict
+from typing import List
 
 import gdb
 from sortedcontainers import SortedDict
@@ -179,6 +180,18 @@ class Chunk:
         self.flags = flags
 
 
+# GDB doesn't like having its breakpoints deleted during stop handlers, so we
+# defer deletion until the next stop event.
+DEFERED_DELETE: List[gdb.Breakpoint] = []
+
+
+@pwndbg.dbg.event_handler(pwndbg.dbg_mod.EventType.STOP)
+def _delete_defered():
+    for entry in DEFERED_DELETE:
+        entry.delete()
+    DEFERED_DELETE.clear()
+
+
 class Tracker:
     def __init__(self) -> None:
         self.free_chunks: SortedDict[int, Chunk] = SortedDict()
@@ -270,7 +283,8 @@ class Tracker:
                 for i in reversed(range(lo_i, hi_i)):
                     addr, ch = self.free_chunks.popitem(index=i)
 
-                    self.free_watchpoints[addr].delete()
+                    self.free_watchpoints[addr].enabled = False
+                    DEFERED_DELETE.append(self.free_watchpoints[addr])
                     del self.free_watchpoints[addr]
 
                 # Add new handlers in their place. We scan over all of the chunks in
@@ -451,6 +465,17 @@ class ReallocEnterBreakpoint(gdb.Breakpoint):
 
         self.tracker.enter_memory_management(REALLOC_NAME)
 
+        if requested_size == 0:
+            # There's no right way to handle realloc(..., 0). C23 says it's
+            # undefined behavior, and prior versions say it's implementation-
+            # defined. Either way, print a warning and do nothing.
+            print(
+                message.warn(
+                    f"[-] realloc({self.freed_pointer:#x}, {requested_size}) ignored, as realloc(0, ...) is implementation defined"
+                )
+            )
+            return False
+
         if freed_pointer == 0:
             # Treat this realloc same as malloc
             AllocExitBreakpoint(self.tracker, requested_size, f"realloc(0x0, {requested_size})")
@@ -519,6 +544,9 @@ class FreeEnterBreakpoint(gdb.Breakpoint):
         if self.tracker.is_performing_memory_management():
             # This call was made from inside another memory management call.
             # Ignore it.
+            return False
+        if ptr == 0:
+            # free(0) is a no-op.
             return False
 
         self.tracker.enter_memory_management(FREE_NAME)
