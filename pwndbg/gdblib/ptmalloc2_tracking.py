@@ -478,7 +478,7 @@ class ReallocExitBreakpoint(gdb.FinishBreakpoint):
         return False
 
     def out_of_scope(self) -> None:
-        print(message.warn(f"warning: could not follow free request for chunk {self.ptr:#x}"))
+        print(message.warn(f"warning: could not follow free request for chunk {self.freed_ptr:#x}"))
         self.tracker.exit_memory_management()
 
 
