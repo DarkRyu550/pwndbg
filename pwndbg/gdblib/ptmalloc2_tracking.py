@@ -209,7 +209,9 @@ class Tracker:
 
         # Make sure we're not doing anything wrong.
         if thread in self.memory_management_calls:
-            assert self.memory_management_calls[thread]
+            assert self.memory_management_calls[
+                thread
+            ], "exit_memory_management_calls assert failed"
 
         self.memory_management_calls[thread] = False
 
@@ -238,7 +240,9 @@ class Tracker:
 
                 lo_heap = pwndbg.aglib.heap.ptmalloc.Heap(lo_addr)
                 hi_heap = pwndbg.aglib.heap.ptmalloc.Heap(hi_addr - 1)
-                assert lo_heap.arena is not None and hi_heap.arena is not None
+                assert (
+                    lo_heap.arena is not None and hi_heap.arena is not None
+                ), "malloc assert failed"
 
                 # TODO: Can this ever actually fail in real world use?
                 #
@@ -258,7 +262,9 @@ class Tracker:
                 # than to let it become a bug.
                 #
                 # [0]: https://sourceware.org/glibc/wiki/MallocInternals
-                assert lo_heap.start == hi_heap.start and lo_heap.end == hi_heap.end
+                assert (
+                    lo_heap.start == hi_heap.start and lo_heap.end == hi_heap.end
+                ), "malloc assert start failed"
 
                 # Remove all of our old handlers.
                 for i in reversed(range(lo_i, hi_i)):
@@ -271,7 +277,9 @@ class Tracker:
                 # the heap in the range of affected chunks, and add the ones that
                 # are free.
                 allocator = pwndbg.aglib.heap.current
-                assert isinstance(allocator, pwndbg.aglib.heap.ptmalloc.GlibcMemoryAllocator)
+                assert isinstance(
+                    allocator, pwndbg.aglib.heap.ptmalloc.GlibcMemoryAllocator
+                ), "malloc allocator assert failed"
                 bins_list = [
                     allocator.fastbins(lo_heap.arena.address),
                     allocator.smallbins(lo_heap.arena.address),
@@ -342,6 +350,11 @@ class MallocEnterBreakpoint(gdb.Breakpoint):
     def stop(self) -> bool:
         pwndbg.lib.cache.clear_cache("stop")
         requested_size = pwndbg.arguments.argument(0)
+        if self.tracker.is_performing_memory_management():
+            # This call was made from inside another memory management call.
+            # Ignore it.
+            return False
+
         self.tracker.enter_memory_management(MALLOC_NAME)
         AllocExitBreakpoint(self.tracker, requested_size, f"malloc({requested_size})")
         return False
@@ -358,6 +371,10 @@ class CallocEnterBreakpoint(gdb.Breakpoint):
         num_elements = pwndbg.arguments.argument(0)
         element_size = pwndbg.arguments.argument(1)
         requested_size = element_size * num_elements
+        if self.tracker.is_performing_memory_management():
+            # This call was made from inside another memory management call.
+            # Ignore it.
+            return False
 
         self.tracker.enter_memory_management(CALLOC_NAME)
         AllocExitBreakpoint(self.tracker, requested_size, f"calloc({num_elements}, {element_size})")
@@ -427,9 +444,18 @@ class ReallocEnterBreakpoint(gdb.Breakpoint):
 
         freed_pointer = pwndbg.arguments.argument(0)
         requested_size = pwndbg.arguments.argument(1)
+        if self.tracker.is_performing_memory_management():
+            # This call was made from inside another memory management call.
+            # Ignore it.
+            return False
 
         self.tracker.enter_memory_management(REALLOC_NAME)
-        ReallocExitBreakpoint(self.tracker, freed_pointer, requested_size)
+
+        if freed_pointer == 0:
+            # Treat this realloc same as malloc
+            AllocExitBreakpoint(self.tracker, requested_size, f"realloc(0x0, {requested_size})")
+        else:
+            ReallocExitBreakpoint(self.tracker, freed_pointer, requested_size)
         return False
 
 
@@ -478,7 +504,7 @@ class ReallocExitBreakpoint(gdb.FinishBreakpoint):
         return False
 
     def out_of_scope(self) -> None:
-        print(message.warn(f"warning: could not follow free request for chunk {self.ptr:#x}"))
+        print(message.warn(f"warning: could not follow free request for chunk {self.freed_ptr:#x}"))
         self.tracker.exit_memory_management()
 
 
@@ -490,6 +516,10 @@ class FreeEnterBreakpoint(gdb.Breakpoint):
     def stop(self) -> bool:
         pwndbg.lib.cache.clear_cache("stop")
         ptr = pwndbg.arguments.argument(0)
+        if self.tracker.is_performing_memory_management():
+            # This call was made from inside another memory management call.
+            # Ignore it.
+            return False
 
         self.tracker.enter_memory_management(FREE_NAME)
         FreeExitBreakpoint(self.tracker, ptr)
