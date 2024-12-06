@@ -547,6 +547,7 @@ class FreeEnterBreakpoint(gdb.Breakpoint):
             return False
         if ptr == 0:
             # free(0) is a no-op.
+            print("[*] free(0x0)")
             return False
 
         self.tracker.enter_memory_management(FREE_NAME)
