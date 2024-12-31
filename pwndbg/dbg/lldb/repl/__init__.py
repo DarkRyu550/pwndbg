@@ -42,6 +42,7 @@ import re
 import signal
 import sys
 import threading
+from asyncio import CancelledError
 from contextlib import contextmanager
 from typing import Any
 from typing import List
@@ -622,16 +623,23 @@ def process_launch(driver: ProcessDriver, relay: EventRelay, args: List[str], db
     dbg._current_process_is_gdb_remote = False
 
     io_driver = get_io_driver()
-    result = driver.launch(
-        dbg.debugger.GetTargetAtIndex(0),
-        io_driver,
-        [f"{name}={value}" for name, value in os.environ.items()],
-        [],
-        os.getcwd(),
-    )
+    cancelled = False
+    try:
+        result = driver.launch(
+            dbg.debugger.GetTargetAtIndex(0),
+            io_driver,
+            [f"{name}={value}" for name, value in os.environ.items()],
+            [],
+            os.getcwd(),
+        )
+    except CancelledError:
+        cancelled = True
 
-    if not result.success:
-        print(message.error(f"Could not launch process: {result.description}"))
+    if not result.success or cancelled:
+        if not cancelled:
+            print(message.error(f"Could not launch process: {result.description}"))
+        else:
+            print("Interrupted")
         return
 
     # Continue execution if the user hasn't requested for a stop at the entry
@@ -723,10 +731,17 @@ def process_connect(driver: ProcessDriver, relay: EventRelay, args: List[str], d
     dbg._current_process_is_gdb_remote = True
 
     io_driver = get_io_driver()
-    error = driver.connect(target, io_driver, args.remoteurl, "gdb-remote")
+    cancelled = False
+    try:
+        error = driver.connect(target, io_driver, args.remoteurl, "gdb-remote")
+    except CancelledError:
+        cancelled = True
 
     if not error.success:
-        print(message.error(f"error: could not connect to remote process: {error.description}"))
+        if not cancelled:
+            print(message.error(f"error: could not connect to remote process: {error.description}"))
+        else:
+            print("Interrupted")
         if created_target:
             # Delete the target we previously created.
             assert dbg.debugger.DeleteTarget(

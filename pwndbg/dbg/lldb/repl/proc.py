@@ -85,6 +85,7 @@ class ProcessDriver:
     def interrupt(self) -> None:
         assert self.has_process(), "called interrupt() on a driver with no process"
         self.process.SendAsyncInterrupt()
+        self._cancel_wait = True
 
     def _run_until_next_stop(
         self,
@@ -93,6 +94,7 @@ class ProcessDriver:
         first_timeout: int = 1,
         only_if_started: bool = False,
         fire_events: bool = True,
+        cancellable: bool = False,
     ) -> lldb.SBEvent | None:
         """
         Runs the event loop of the process until the next stop event is hit, with
@@ -104,6 +106,8 @@ class ProcessDriver:
         timeout if it can't observe a state change to a running state, and I/O
         will only start running after the start event is observed.
         """
+
+        self._cancel_wait = False
 
         # If `only_if_started` is set, we defer the starting of the I/O driver
         # to the moment the start event is observed. Otherwise, we just start it
@@ -127,6 +131,10 @@ class ProcessDriver:
                 if self.debug:
                     print(f"[-] ProcessDriver: Timed out after {timeout_time}s")
                 timeout_time = timeout
+
+                if self._cancel_wait and cancellable:
+                    self._cancel_wait = False
+                    raise CancelledError("_wait_until_next_stop was cancelled")
 
                 # If the process isn't running, we should stop.
                 if not running:
@@ -406,7 +414,7 @@ class ProcessDriver:
         assert self.process.IsValid()
 
         self.io = io
-        self._run_until_next_stop(fire_events=False)
+        self._run_until_next_stop(fire_events=False, cancellable=True)
         self.eh.created()
 
         return error
@@ -450,7 +458,7 @@ class ProcessDriver:
         # Unlike in `launch()`, it's not guaranteed that the process will not be
         # running at this point, so we have to attach the I/O and wait until we
         # get a stop event.
-        self._run_until_next_stop(fire_events=False)
+        self._run_until_next_stop(fire_events=False, cancellable=True)
         self.eh.created()
 
         return error
