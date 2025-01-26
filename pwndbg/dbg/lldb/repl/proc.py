@@ -6,6 +6,7 @@ from asyncio import CancelledError
 from typing import Any
 from typing import Coroutine
 from typing import List
+from typing import Tuple
 
 import lldb
 
@@ -13,6 +14,7 @@ import pwndbg
 from pwndbg.dbg.lldb import YieldContinue
 from pwndbg.dbg.lldb import YieldSingleStep
 from pwndbg.dbg.lldb.repl.io import IODriver
+from pwndbg.dbg.lldb.repl.io import IODriverPlainText
 
 
 class EventHandler:
@@ -80,6 +82,13 @@ class ProcessDriver:
         """
         Whether there's an active process in this driver.
         """
+        return self.process is not None and self.process.GetState() != lldb.eStateConnected
+
+    def has_connection(self) -> bool:
+        """
+        Whether this driver's connected to a target. All drivers that have an
+        active process also must necessarily be connected.
+        """
         return self.process is not None
 
     def interrupt(self) -> None:
@@ -90,54 +99,34 @@ class ProcessDriver:
         self,
         with_io: bool = True,
         timeout: int = 1,
-        first_timeout: int = 1,
-        only_if_started: bool = False,
         fire_events: bool = True,
-    ) -> lldb.SBEvent | None:
+        stop_after_timeout: bool = False,
+    ) -> Tuple[bool, lldb.SBEvent | None]:
         """
-        Runs the event loop of the process until the next stop event is hit, with
-        a configurable timeouts for the first and subsequent timeouts.
+        Runs the event loop of the process until the next process state change
+        event is hit, with a configurable timeout.
 
         Optionally runs the I/O system alongside the event loop.
-
-        If `only_if_started` is passed, this method will stop after the first
-        timeout if it can't observe a state change to a running state, and I/O
-        will only start running after the start event is observed.
         """
 
-        # If `only_if_started` is set, we defer the starting of the I/O driver
-        # to the moment the start event is observed. Otherwise, we just start it
-        # immediately.
-        io_started = False
-        if with_io and not only_if_started:
+        if with_io:
             self.io.start(process=self.process)
-            io_started = True
 
-        # Pick the first timeout value.
-        timeout_time = first_timeout
-
-        # If `only_if_started` is not set, assume the process must have been
-        # started by a previous action and is running.
-        running = not only_if_started
-
-        reason: lldb.SBEvent | None = None
+        last: lldb.SBEvent | None = None
+        expected: bool = False
         while True:
             event = lldb.SBEvent()
-            if not self.listener.WaitForEvent(timeout_time, event):
+            if not self.listener.WaitForEvent(timeout, event):
                 if self.debug:
-                    print(f"[-] ProcessDriver: Timed out after {timeout_time}s")
-                timeout_time = timeout
+                    print(f"[-] ProcessDriver: Timed out after {timeout}s")
 
-                # If the process isn't running, we should stop.
-                if not running:
+                if stop_after_timeout:
                     if self.debug:
-                        print(
-                            "[-] ProcessDriver: Waited too long for process to start running, giving up"
-                        )
+                        print("[-] ProcessDriver: Quit after timeout")
                     break
-
                 continue
 
+            last = event
             if self.debug:
                 descr = lldb.SBStream()
                 if event.GetDescription(descr):
@@ -150,7 +139,6 @@ class ProcessDriver:
                     # Notify the event handler that new modules got loaded in.
                     if fire_events:
                         self.eh.modules_loaded()
-
             elif lldb.SBProcess.EventIsProcessEvent(event):
                 if (
                     event.GetType() == lldb.SBProcess.eBroadcastBitSTDOUT
@@ -164,21 +152,16 @@ class ProcessDriver:
                     new_state = lldb.SBProcess.GetStateFromEvent(event)
                     was_resumed = lldb.SBProcess.GetRestartedFromEvent(event)
 
+                    if was_resumed:
+                        print("[-] ProcessDriver: Process was resumed after last event")
+
                     if new_state == lldb.eStateStopped and not was_resumed:
                         # The process has stopped, so we're done processing events
                         # for the time being. Trigger the stopped event and return.
                         if fire_events:
                             self.eh.suspended()
-                        reason = event
+                        expected = True
                         break
-
-                    if new_state == lldb.eStateRunning or new_state == lldb.eStateStepping:
-                        running = True
-                        # Start the I/O driver here if its start got deferred
-                        # because of `only_if_started` being set.
-                        if only_if_started and with_io:
-                            self.io.start(process=self.process)
-                            io_started = True
 
                     if (
                         new_state == lldb.eStateExited
@@ -194,13 +177,12 @@ class ProcessDriver:
 
                         if fire_events:
                             self.eh.exited()
-                        reason = event
                         break
 
-        if io_started:
+        if with_io:
             self.io.stop()
 
-        return reason
+        return expected, last
 
     def cont(self) -> None:
         """
@@ -274,6 +256,7 @@ class ProcessDriver:
         process in this driver. Returns `True` if the coroutine ran to completion,
         and `False` if it was cancelled.
         """
+        assert self.has_process(), "called run_coroutine() on a driver with no process"
         exception: Exception | None = None
         while True:
             try:
@@ -313,14 +296,20 @@ class ProcessDriver:
                     )
                     continue
 
-                self._run_until_next_stop()
+                healthy, event = self._run_until_next_stop()
+                if not healthy:
+                    # The process exited. Cancel the execution controller.
+                    exception = CancelledError()
+                    continue
+
             elif isinstance(step, YieldContinue):
                 # Continue the process and wait for the next stop-like event.
                 self.process.Continue()
-                event = self._run_until_next_stop()
-                assert (
-                    event is not None
-                ), "None should only be returned by _run_until_next_stop unless start timeouts are enabled"
+                healthy, event = self._run_until_next_stop()
+                if not healthy:
+                    # The process exited, Cancel the execution controller.
+                    exception = CancelledError()
+                    continue
 
                 # Check whether this stop event is the one we expect.
                 stop: lldb.SBBreakpoint | lldb.SBWatchpoint = step.target.inner
@@ -379,40 +368,64 @@ class ProcessDriver:
 
         Fires the created() event.
         """
-        stdin, stdout, stderr = io.stdio()
-        error = lldb.SBError()
-        self.listener = lldb.SBListener("pwndbg.dbg.lldb.repl.proc.ProcessDriver")
-        assert self.listener.IsValid()
+        assert not self.has_process(), "called launch() on a driver with a live process"
 
-        # We are interested in handling certain target events synchronously, so
-        # set them up here, before LLDB has had any chance to do anything to the
-        # process.
-        self.listener.StartListeningForEventClass(
-            target.GetDebugger(),
-            lldb.SBTarget.GetBroadcasterClassName(),
-            lldb.SBTarget.eBroadcastBitModulesLoaded,
-        )
+        error = lldb.SBError() 
 
         # Do the launch, proper. We always stop the target, and let the upper
         # layers deal with the user wanting the program to not stop at entry by
         # calling `cont()`.
-        self.process = target.Launch(
-            self.listener,
-            args,
-            env,
-            stdin,
-            stdout,
-            stderr,
-            os.getcwd(),
-            lldb.eLaunchFlagStopAtEntry,
-            True,
-            error,
-        )
+        if self.has_connection():
+            # This is a remote launch.
+            #
+            # We ignore the IODriver we were given, and use the plain text
+            # driver, as we can't guarantee that anything else would work.
+            io = IODriverPlainText()
+            stdin, stdout, stderr = io.stdio()
+            self.process.RemoteLaunch(
+                args,
+                env,
+                stdin,
+                stdout,
+                stderr,
+                None,
+                lldb.eLaunchFlagStopAtEntry,
+                True,
+                error,
+            )
+        else:
+            # This is a local launch.
+            self.listener = lldb.SBListener("pwndbg.dbg.lldb.repl.proc.ProcessDriver")
+            assert self.listener.IsValid()
+
+            # We are interested in handling certain target events synchronously, so
+            # set them up here, before LLDB has had any chance to do anything to the
+            # process.
+            self.listener.StartListeningForEventClass(
+                target.GetDebugger(),
+                lldb.SBTarget.GetBroadcasterClassName(),
+                lldb.SBTarget.eBroadcastBitModulesLoaded,
+            )
+            stdin, stdout, stderr = io.stdio()
+            self.process = target.Launch(
+                self.listener,
+                args,
+                env,
+                stdin,
+                stdout,
+                stderr,
+                os.getcwd(),
+                lldb.eLaunchFlagStopAtEntry,
+                True,
+                error,
+            )
+
+            if not error.success:
+                # Undo any initialization Launch() might've done.
+                self.process = None
+                self.listener = None
 
         if not error.success:
-            # Undo any initialization Launch() might've done.
-            self.process = None
-            self.listener = None
             return error
 
         assert self.listener.IsValid()
@@ -472,13 +485,14 @@ class ProcessDriver:
     def connect(self, target: lldb.SBTarget, io: IODriver, url: str, plugin: str) -> lldb.SBError:
         """
         Connects to a remote proces with the given URL using the plugin with the
-        given name, and attaches to the process until LLDB issues a start event
-        to us.
+        given name. This might cause the process to launch in some implementations,
+        or it might require a call to `launch()`, in implementations that
+        require a further call to `SBProcess::RemoteLaunch()`.
 
-        Potentially fires all types of events, as it is not known when LLDB will
-        return control of the process to us.
+        Fires the created() event if a process is automatically attached to
+        or launched when a connection succeeds.
         """
-
+        assert not self.has_connection(), "called connect() on a driver with an active connection"
         stdin, stdout, stderr = io.stdio()
         error = lldb.SBError()
         self.listener = lldb.SBListener("pwndbg.dbg.lldb.repl.proc.ProcessDriver")
@@ -505,10 +519,25 @@ class ProcessDriver:
 
         self.io = io
 
-        # Unlike in `launch()`, it's not guaranteed that the process will not be
-        # running at this point, so we have to attach the I/O and wait until we
-        # get a stop event.
-        self._run_until_next_stop(fire_events=False)
-        self.eh.created()
+        # Unlike in `launch()`, it's not guaranteed that the process is actually
+        # alive, as it might be in the Connected state, which indicates that
+        # the connection was successful, but that we still need to launch it
+        # manually in the remote target.
+        while True:
+            healthy, event = self._run_until_next_stop(
+                with_io=False, fire_events=False, stop_after_timeout=True
+            )
+            if healthy:
+                # The process has startarted. We can fire off the created event
+                # just fine.
+                self.eh.created()
+            elif (
+                event is not None
+                and lldb.SBProcess.GetStateFromEvent(event) == lldb.eStateConnected
+            ):
+                # This indicates that on this implementation, connecting isn't
+                # enough to have the process launch or attach, and that we have
+                # to do that manually.
+                break
 
         return error
