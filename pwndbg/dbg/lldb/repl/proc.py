@@ -99,34 +99,56 @@ class ProcessDriver:
         self,
         with_io: bool = True,
         timeout: int = 1,
+        first_timeout: int = 1,
+        only_if_started: bool = False,
         fire_events: bool = True,
-        stop_after_timeout: bool = False,
     ) -> Tuple[bool, lldb.SBEvent | None]:
         """
-        Runs the event loop of the process until the next process state change
-        event is hit, with a configurable timeout.
+        Runs the event loop of the process until the next stop event is hit, with
+        a configurable timeouts for the first and subsequent timeouts.
 
         Optionally runs the I/O system alongside the event loop.
+
+        If `only_if_started` is passed, this method will stop after the first
+        timeout if it can't observe a state change to a running state, and I/O
+        will only start running after the start event is observed.
         """
 
-        if with_io:
+        # If `only_if_started` is set, we defer the starting of the I/O driver
+        # to the moment the start event is observed. Otherwise, we just start it
+        # immediately.
+        io_started = False
+        if with_io and not only_if_started:
             self.io.start(process=self.process)
+            io_started = True
+
+        # Pick the first timeout value.
+        timeout_time = first_timeout
+
+        # If `only_if_started` is not set, assume the process must have been
+        # started by a previous action and is running.
+        running = not only_if_started
 
         last: lldb.SBEvent | None = None
         expected: bool = False
         while True:
             event = lldb.SBEvent()
-            if not self.listener.WaitForEvent(timeout, event):
+            if not self.listener.WaitForEvent(timeout_time, event):
                 if self.debug:
-                    print(f"[-] ProcessDriver: Timed out after {timeout}s")
+                    print(f"[-] ProcessDriver: Timed out after {timeout_time}s")
+                timeout_time = timeout
 
-                if stop_after_timeout:
+                # If the process isn't running, we should stop.
+                if not running:
                     if self.debug:
-                        print("[-] ProcessDriver: Quit after timeout")
+                        print(
+                            "[-] ProcessDriver: Waited too long for process to start running, giving up"
+                        )
                     break
-                continue
 
+                continue
             last = event
+
             if self.debug:
                 descr = lldb.SBStream()
                 if event.GetDescription(descr):
@@ -139,6 +161,7 @@ class ProcessDriver:
                     # Notify the event handler that new modules got loaded in.
                     if fire_events:
                         self.eh.modules_loaded()
+
             elif lldb.SBProcess.EventIsProcessEvent(event):
                 if (
                     event.GetType() == lldb.SBProcess.eBroadcastBitSTDOUT
@@ -152,9 +175,6 @@ class ProcessDriver:
                     new_state = lldb.SBProcess.GetStateFromEvent(event)
                     was_resumed = lldb.SBProcess.GetRestartedFromEvent(event)
 
-                    if was_resumed:
-                        print("[-] ProcessDriver: Process was resumed after last event")
-
                     if new_state == lldb.eStateStopped and not was_resumed:
                         # The process has stopped, so we're done processing events
                         # for the time being. Trigger the stopped event and return.
@@ -162,6 +182,14 @@ class ProcessDriver:
                             self.eh.suspended()
                         expected = True
                         break
+
+                    if new_state == lldb.eStateRunning or new_state == lldb.eStateStepping:
+                        running = True
+                        # Start the I/O driver here if its start got deferred
+                        # because of `only_if_started` being set.
+                        if only_if_started and with_io:
+                            self.io.start(process=self.process)
+                            io_started = True
 
                     if (
                         new_state == lldb.eStateExited
@@ -179,7 +207,7 @@ class ProcessDriver:
                             self.eh.exited()
                         break
 
-        if with_io:
+        if io_started:
             self.io.stop()
 
         return expected, last
@@ -370,7 +398,7 @@ class ProcessDriver:
         """
         assert not self.has_process(), "called launch() on a driver with a live process"
 
-        error = lldb.SBError() 
+        error = lldb.SBError()
 
         # Do the launch, proper. We always stop the target, and let the upper
         # layers deal with the user wanting the program to not stop at entry by
@@ -525,7 +553,7 @@ class ProcessDriver:
         # manually in the remote target.
         while True:
             healthy, event = self._run_until_next_stop(
-                with_io=False, fire_events=False, stop_after_timeout=True
+                with_io=False, fire_events=False, only_if_started=True
             )
             if healthy:
                 # The process has startarted. We can fire off the created event
